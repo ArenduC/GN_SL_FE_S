@@ -1,0 +1,56 @@
+export const ENDPOINTS = {
+    TASKS: {
+        history: (taskId: string) => `/tasks/${taskId}/history`,
+        createHistory: '/tasks/create-history',
+        moveTask: '/tasks/task-move',
+        updateTask: '/tasks/task-update',
+        addTask: '/tasks/task-add',
+        addTasksBatch: '/tasks/tasks-batch-add',
+        addSubtasks: '/tasks/subtask-add',
+        updateSubtask: '/tasks/subtask-update',
+        deleteSubtask: '/tasks/subtask-delete',
+        addComment: '/tasks/comment-add',
+        addColumn: '/tasks/column-add',
+        deleteColumn: '/tasks/column-delete',
+    },
+    AUTH: {
+        login: '/auth/login',
+        signUp: '/auth/signup',
+        logout: '/auth/logout',
+        forgotPassword: '/auth/forgot-password',
+        resendConfirmation: '/auth/resend-confirmation',
+        me: '/auth/me',
+        updatePassword: '/auth/update-password',
+    },
+    USER: {
+        profile: (userId: string) => `/users/${userId}/profile`,
+    },
+    DASHBOARD: {
+        initialData: (userId: string) => `/dashboard/${userId}/initial-data`,
+    },
+    PROJECTS: {
+        updateColumnOrder: '/projects/column-order',
+        addProject: '/projects/project-add',
+        createProjectShell: '/projects/project-shell-add',
+        deleteProject: '/projects/project-delete',
+        updateProjectMembers: '/projects/members-update',
+        addProjectLink: '/projects/link-add',
+        deleteProjectLink: '/projects/link-delete',
+        acceptInvite: '/invite/accept-invite',
+        getInviteLinks: '/invite/project-links',
+        createInviteLink: '/invite/create-link',
+        updateInviteLink: '/invite/update-link',
+        submitFeedback: '/feedback/submit',
+    },
+    SPRINTS: {
+        addSprint: '/sprint/sprint-add',
+        updateSprint: '/sprint/sprint-update',
+        deleteSprint: '/sprint/sprint-delete',
+        bulkUpdateTaskSprint: '/sprint/tasks-bulk-update',
+    },
+    FILTERS: {
+        addFilterSegment: '/filter/filter-add',
+        updateFilterSegment: '/filter/filter-update',
+        deleteFilterSegment: '/filter/filter-delete',
+    }
+};
