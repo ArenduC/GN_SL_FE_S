@@ -20,11 +20,80 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onShowPrivacy }) => {
     const [successMessage, setSuccessMessage] = useState('');
     const [hasInvite, setHasInvite] = useState(false);
 
+    const handleGoogleCredentialResponse = async (response: any) => {
+        try {
+            setLoading(true);
+            setError('');
+            setSuccessMessage('');
+            
+            const jwt = response.credential;
+            const res = await api.auth.signInWithGoogle({ credential: jwt });
+            
+            if (res.error) {
+                throw new Error(res.error.message || "Google authentication failed.");
+            }
+            
+            setSuccessMessage("Logged in successfully with Google!");
+        } catch (err: any) {
+            console.error("Google login error:", err);
+            setError(err.message || "Google authentication failed. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (localStorage.getItem('project_invite_token')) {
             setHasInvite(true);
         }
     }, []);
+
+    useEffect(() => {
+        const initGoogle = () => {
+            const btnContainer = document.getElementById('google-signin-btn-div');
+            if ((window as any).google?.accounts?.id && btnContainer) {
+                (window as any).google.accounts.id.initialize({
+                    client_id: '738704375865-jdkne9t26747pk3vrc59vtecln0vs77t.apps.googleusercontent.com',
+                    callback: handleGoogleCredentialResponse,
+                });
+                (window as any).google.accounts.id.renderButton(
+                    btnContainer,
+                    { 
+                        theme: 'dark', 
+                        size: 'large', 
+                        width: btnContainer.clientWidth || 380,
+                        text: 'continue_with',
+                        shape: 'rectangular'
+                    }
+                );
+            }
+        };
+
+        if ((window as any).google?.accounts?.id) {
+            setTimeout(initGoogle, 150);
+            return;
+        }
+
+        const scriptId = 'google-gsi-client';
+        if (!document.getElementById(scriptId)) {
+            const script = document.createElement('script');
+            script.id = scriptId;
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.async = true;
+            script.defer = true;
+            script.onload = () => setTimeout(initGoogle, 150);
+            document.body.appendChild(script);
+        } else {
+            const existingScript = document.getElementById(scriptId);
+            if (existingScript) {
+                const prevOnload = existingScript.onload;
+                existingScript.onload = (e) => {
+                    if (prevOnload) (prevOnload as any)(e);
+                    setTimeout(initGoogle, 150);
+                };
+            }
+        }
+    }, [mode]);
 
     const passwordChecks = useMemo(() => ({
         length: password.length >= 8,
@@ -273,6 +342,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onShowPrivacy }) => {
                     </button>
                 </div>
             </form>
+
+            {(mode === 'signIn' || mode === 'signUp') && (
+                <>
+                    <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t border-gray-800" />
+                        </div>
+                        <div className="relative flex justify-center text-[10px] uppercase tracking-wider">
+                            <span className="bg-[#131C1B] px-3 text-gray-400 font-semibold">Or continue with</span>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center w-full min-h-[44px]">
+                        <div id="google-signin-btn-div" className="w-full flex justify-center"></div>
+                    </div>
+                </>
+            )}
+
             <p className="mt-8 text-center text-xs text-gray-500">
                 {mode === 'signIn' && "Don't have an account?"}
                 {mode === 'signUp' && "Already have an account?"}

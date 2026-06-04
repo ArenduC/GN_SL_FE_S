@@ -21,6 +21,7 @@ export const ENDPOINTS = {
         resendConfirmation: '/auth/resend-confirmation',
         me: '/auth/me',
         updatePassword: '/auth/update-password',
+        google: '/auth/google',
     },
     USER: {
         profile: (userId: string) => `/users/${userId}/profile`,

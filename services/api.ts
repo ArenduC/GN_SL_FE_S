@@ -185,6 +185,39 @@ const signInWithPassword = async ({ email, password }: { email: string, password
     }
 };
 
+const signInWithGoogle = async ({ credential }: { credential: string }) => {
+    try {
+        const response = await client.post(ENDPOINTS.AUTH.google, { credential });
+        const { token, user } = response.data;
+        
+        if (token) {
+            localStorage.setItem('auth_token', token);
+        }
+        
+        const mappedUser = {
+            id: user.id,
+            email: user.email,
+            user_metadata: { name: user.name || '' },
+            app_metadata: { recovery: !!user.is_recovering }
+        };
+        
+        const session: Session = {
+            access_token: token || '',
+            refresh_token: '',
+            expires_in: 3600,
+            token_type: 'bearer',
+            user: mappedUser as any
+        };
+        
+        triggerAuthChange('SIGNED_IN', session);
+        return { data: { session }, error: null };
+    } catch (err: any) {
+        console.error("signInWithGoogle failed:", err.response?.data || err.message);
+        const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to sign in with Google";
+        return { data: { session: null }, error: { message: errorMessage } };
+    }
+};
+
 const signUp = async ({ email, password, name }: { email: string, password: string, name: string }) => {
     try {
         const response = await client.post(ENDPOINTS.AUTH.signUp, { email, password, name });
@@ -1036,6 +1069,7 @@ export const api = {
         updateUserProfile,
         signOut,
         signInWithPassword,
+        signInWithGoogle,
         signUp,
         sendPasswordResetEmail,
         resendConfirmationEmail,
