@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Project, User, Task, Bug, TaskPriority } from '../types';
+import { Project, User, Task, TaskPriority } from '../types';
 import { UserAvatar } from '../components/UserAvatar';
 // FIX: Added AppLogo to the imports.
 import { UsersIcon, LayoutDashboardIcon, ZapIcon, SearchIcon, CheckSquareIcon, TrendingUpIcon, ChevronLeftIcon, ChevronRightIcon, UserIcon, SparklesIcon, AppLogo, XIcon } from '../components/Icons';
@@ -16,27 +16,26 @@ interface ResourceManagementPageProps {
 
 const GlobalEngagementCalendar: React.FC<{ 
     tasks: Task[]; 
-    bugs: Bug[]; 
     users: User[]; 
     selectedUserId: string | 'all';
     onUserSelect: (id: string | 'all') => void;
     viewDate: Date;
     onViewDateChange: (date: Date) => void;
-}> = ({ tasks, bugs, users, selectedUserId, onUserSelect, viewDate, onViewDateChange }) => {
+}> = ({ tasks, users, selectedUserId, onUserSelect, viewDate, onViewDateChange }) => {
     const currentMonth = viewDate.getMonth(), currentYear = viewDate.getFullYear();
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const firstDay = new Date(currentYear, currentMonth, 1).getDay();
 
     const engagementMap = useMemo(() => {
         const counts = new Map<number, number>();
-        const filtered = [...tasks, ...bugs].filter(i => {
-            const assignee = (i as Task).assignee || (i as Bug).assignee;
+        const filtered = tasks.filter(i => {
+            const assignee = i.assignee;
             return selectedUserId === 'all' || assignee?.id === selectedUserId;
         });
 
         filtered.forEach(i => {
             // Logic Fix: Fallback to createdAt if dueDate is missing to show activity nodes correctly
-            const dStr = ('dueDate' in i && i.dueDate) ? i.dueDate : (i as any).createdAt;
+            const dStr = i.dueDate ? i.dueDate : i.createdAt;
             if (!dStr) return;
             const d = new Date(dStr);
             if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
@@ -45,7 +44,7 @@ const GlobalEngagementCalendar: React.FC<{
             }
         });
         return counts;
-    }, [tasks, bugs, selectedUserId, currentMonth, currentYear]);
+    }, [tasks, selectedUserId, currentMonth, currentYear]);
 
     // FIX: Cast values to number[] to resolve arithmetic operation type error on spread in Math.max.
     const max = Math.max(...(Array.from(engagementMap.values()) as number[]), 1);
@@ -134,7 +133,6 @@ export const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({ 
     // FIX: Explicitly cast Object.values to Project[] and User[] to ensure property access on known types and resolve compilation errors.
     const pList = Object.values(projects || {}) as Project[], uList = Object.values(users || {}) as User[];
     const allT = pList.flatMap(p => p.board?.tasks ? (Object.values(p.board.tasks) as Task[]) : []);
-    const allB = pList.flatMap(p => p.bugs ? (Object.values(p.bugs) as Bug[]) : []);
 
     const filteredUsers = useMemo(() => (uList || []).filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase())), [uList, searchQuery]);
     const pgs = Math.ceil(filteredUsers.length / 15);
@@ -168,7 +166,7 @@ export const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({ 
         <div className="grid grid-cols-12 gap-5">
             <div className="col-span-12 lg:col-span-8 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    <GlobalEngagementCalendar tasks={allT} bugs={allB} users={uList} selectedUserId={selectedUser} onUserSelect={setSelectedUser} viewDate={viewDate} onViewDateChange={setViewDate} />
+                    <GlobalEngagementCalendar tasks={allT} users={uList} selectedUserId={selectedUser} onUserSelect={setSelectedUser} viewDate={viewDate} onViewDateChange={setViewDate} />
                     <div className="p-4 rounded-2xl bg-gradient-to-br from-[#131C1B] to-black border border-white/5 flex flex-col justify-center">
                         <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-1.5">Neural Audit</h4>
                         <p className="text-[10px] text-gray-400 leading-relaxed italic">

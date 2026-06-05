@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChatMessage, User, Project, Bug } from '../types';
+import { ChatMessage, User, Project } from '../types';
 import { XIcon, SendIcon, CopyIcon, CheckIcon, MessageSquareIcon } from './Icons';
 import { UserAvatar } from './UserAvatar';
 import { JsonSyntaxHighlighter } from './JsonSyntaxHighlighter';
@@ -13,7 +13,6 @@ interface ProjectChatProps {
     onlineUsers: Set<string>;
     onClose: () => void;
     onSendMessage: (text: string) => Promise<void>;
-    onNavigateToBug: (bugNumber: string) => void;
 }
 
 const formatDateSeparator = (dateString: string) => {
@@ -50,9 +49,7 @@ const ChatBubble: React.FC<{
     isCurrentUser: boolean;
     isOnline: boolean;
     users: User[];
-    bugs: Bug[];
-    onNavigateToBug: (bugNumber: string) => void;
-}> = ({ message, isCurrentUser, isOnline, users, bugs, onNavigateToBug }) => {
+}> = ({ message, isCurrentUser, isOnline, users }) => {
     const alignment = isCurrentUser ? 'items-end' : 'items-start';
     const isJson = isJsonContent(message.text);
     // Remove bubble background/padding for JSON to allow code block to take full width/style
@@ -81,9 +78,6 @@ const ChatBubble: React.FC<{
         const sortedUsers = [...users]
             .filter(u => u && typeof u.name === 'string')
             .sort((a, b) => (b.name ? b.name.length : 0) - (a.name ? a.name.length : 0));
-        const sortedBugs = [...bugs]
-            .filter(b => b && typeof b.bugNumber === 'string')
-            .sort((a, b) => (b.bugNumber ? b.bugNumber.length : 0) - (a.bugNumber ? a.bugNumber.length : 0));
 
         const partsForRegex = [];
         partsForRegex.push('(https?:\\/\\/[^\\s]+)'); 
@@ -92,11 +86,6 @@ const ChatBubble: React.FC<{
             .filter(Boolean)
             .join('|');
         if (userNamesRegex) partsForRegex.push(`(@(?:${userNamesRegex}))`);
-        const bugNumbersRegex = sortedBugs
-            .map(b => escapeRegex(b.bugNumber))
-            .filter(Boolean)
-            .join('|');
-        if (bugNumbersRegex) partsForRegex.push(`(#(?:${bugNumbersRegex}))`);
 
         if (partsForRegex.length === 0) return text;
         
@@ -118,9 +107,6 @@ const ChatBubble: React.FC<{
             } else if (matchedText.startsWith('@')) {
                 const userName = matchedText.substring(1);
                 elements.push(<strong key={offset} className={`font-semibold rounded px-1 py-0.5 ${isCurrentUser ? 'bg-blue-200 text-blue-800' : 'bg-blue-900/50 text-blue-300'}`}>@{userName}</strong>);
-            } else if (matchedText.startsWith('#')) {
-                const bugNumber = matchedText.substring(1);
-                elements.push(<strong key={offset} className={`font-semibold rounded px-1 py-0.5 cursor-pointer hover:underline ${isCurrentUser ? 'bg-purple-200 text-purple-800' : 'bg-purple-900/50 text-purple-300'}`} onClick={(e) => { e.stopPropagation(); onNavigateToBug(bugNumber); }}>#{bugNumber}</strong>);
             }
             lastIndex = offset + matchedText.length;
         }
@@ -182,25 +168,23 @@ const ChatBubble: React.FC<{
 };
 
 
-export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messages, currentUser, onlineUsers, onClose, onSendMessage, onNavigateToBug }) => {
+export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messages, currentUser, onlineUsers, onClose, onSendMessage }) => {
     const [newMessage, setNewMessage] = useState('');
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     
-    const [suggestionState, setSuggestionState] = useState<{ show: boolean; type: 'user' | 'bug' | null; query: string }>({ show: false, type: null, query: '' });
+    const [suggestionState, setSuggestionState] = useState<{ show: boolean; type: 'user' | null; query: string }>({ show: false, type: null, query: '' });
     const [activeIndex, setActiveIndex] = useState(0);
 
     const projectMembers = useMemo(() => project.members.map(id => users.find(u => u.id === id)).filter((u): u is User => !!u), [project.members, users]);
-    const projectBugs = useMemo(() => Object.values(project.bugs || {}), [project.bugs]);
 
     const filteredSuggestions = useMemo(() => {
         if (!suggestionState.show || !suggestionState.query) return [];
         const queryLower = suggestionState.query.toLowerCase();
         if (suggestionState.type === 'user') return projectMembers.filter(m => m.name.toLowerCase().includes(queryLower));
-        if (suggestionState.type === 'bug') return projectBugs.filter(b => b.bugNumber.toLowerCase().includes(queryLower) || b.title.toLowerCase().includes(queryLower));
         return [];
-    }, [suggestionState, projectMembers, projectBugs]);
+    }, [suggestionState, projectMembers]);
 
     useEffect(() => { setActiveIndex(0); }, [filteredSuggestions]);
     
@@ -231,26 +215,26 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
         setNewMessage(text);
         const cursorPos = e.target.selectionStart;
         const textToCursor = text.substring(0, cursorPos);
-        const lastWordMatch = textToCursor.match(/[@#](\w*)$/);
+        const lastWordMatch = textToCursor.match(/[@](\w*)$/);
 
         if (lastWordMatch) {
-            setSuggestionState({ show: true, type: lastWordMatch[0][0] === '@' ? 'user' : 'bug', query: lastWordMatch[1] });
+            setSuggestionState({ show: true, type: 'user', query: lastWordMatch[1] });
         } else {
             setSuggestionState({ show: false, type: null, query: '' });
         }
     };
 
-    const handleSuggestionSelect = (item: User | Bug) => {
+    const handleSuggestionSelect = (item: User) => {
         const text = newMessage;
         const cursorPos = textareaRef.current?.selectionStart || 0;
         const textToCursor = text.substring(0, cursorPos);
-        const lastTriggerIndex = textToCursor.lastIndexOf(suggestionState.type === 'user' ? '@' : '#');
+        const lastTriggerIndex = textToCursor.lastIndexOf('@');
         if (lastTriggerIndex === -1) return;
 
         const prefix = text.substring(0, lastTriggerIndex);
         const suffix = text.substring(cursorPos);
-        const value = 'name' in item ? item.name : item.bugNumber;
-        const newText = `${prefix}${suggestionState.type === 'user' ? '@' : '#'}${value} ${suffix}`;
+        const value = item.name;
+        const newText = `${prefix}@${value} ${suffix}`;
 
         setNewMessage(newText);
         setSuggestionState({ show: false, type: null, query: '' });
@@ -316,8 +300,6 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
                                 isCurrentUser={msg.author.id === currentUser.id} 
                                 isOnline={onlineUsers.has(msg.author.id)}
                                 users={projectMembers}
-                                bugs={projectBugs}
-                                onNavigateToBug={onNavigateToBug}
                             />
                         </React.Fragment>
                     );
@@ -331,9 +313,8 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
                             {filteredSuggestions.map((item, index) => (
                                 <li key={item.id} onClick={() => handleSuggestionSelect(item)} onMouseEnter={() => setActiveIndex(index)}
                                     className={`px-3 py-2 cursor-pointer flex items-center gap-2 text-xs ${index === activeIndex ? 'bg-gray-700' : 'hover:bg-gray-800/50'}`}>
-                                    {suggestionState.type === 'user' && <UserAvatar user={item as User} className="w-6 h-6 flex-shrink-0" />}
-                                    {suggestionState.type === 'bug' && <span className="font-mono text-xs bg-gray-800 px-1.5 py-0.5 rounded">{(item as Bug).bugNumber}</span>}
-                                    <span className="text-white truncate">{'name' in item ? item.name : item.title}</span>
+                                    <UserAvatar user={item} className="w-6 h-6 flex-shrink-0" />
+                                    <span className="text-white truncate">{item.name}</span>
                                 </li>
                             ))}
                         </ul>
@@ -345,7 +326,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
                         value={newMessage}
                         onChange={handleNewMessageChange}
                         onKeyDown={handleKeyDown}
-                        placeholder="Message... (@mention, #bug)"
+                        placeholder="Message... (@mention)"
                         className="chat-textarea w-full px-4 py-2 border border-gray-800 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 bg-[#1C2326] text-xs text-white resize-none"
                         rows={1}
                         style={{ height: 'auto', maxHeight: '120px' }}

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
 import { StrictModeDroppable } from './StrictModeDroppable';
-import { Column as ColumnType, BoardData, Task, Subtask, User, ChatMessage, FilterSegment, Project, Bug, TaskPriority, AiGeneratedTaskFromFile, Sprint, BugResponse, NewTaskData } from '../types';
+import { Column as ColumnType, BoardData, Task, Subtask, User, ChatMessage, FilterSegment, Project, TaskPriority, AiGeneratedTaskFromFile, Sprint, NewTaskData } from '../types';
 import { Column } from './Column';
 import { Filters } from './Filters';
 import { PlusIcon, LayoutDashboardIcon, GitBranchIcon, TableIcon, LifeBuoyIcon, RocketIcon, DownloadIcon, XIcon, SparklesIcon, ZapIcon, LinkIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
@@ -13,7 +13,6 @@ import { AiTaskCreator } from './AiTaskCreator';
 import { TaskGraphView } from './TaskGraphView';
 import { ProjectLinksManager } from './ProjectLinksManager';
 import { TaskTableView } from './TaskTableView';
-import { BugReporter } from './BugReporter';
 import { ResourceMeshModal } from './ResourceMeshModal';
 import { Pagination } from './Pagination';
 import { TaskImportDropzone } from './TaskImportDropzone';
@@ -52,11 +51,6 @@ interface KanbanBoardProps {
   onTaskClick: (task: Task) => void;
   addProjectLink: (title: string, url: string) => Promise<void>;
   deleteProjectLink: (linkId: string) => Promise<void>;
-  addBug: (projectId: string, bugData: { title: string, description: string, priority: TaskPriority }) => Promise<void>;
-  updateBug: (bugId: string, updates: Partial<Bug>) => Promise<void>;
-  deleteBug: (bugId: string) => Promise<void>;
-  addBugsBatch: (bugs: BugResponse[]) => Promise<void>;
-  deleteBugsBatch: (bugIds: string[]) => Promise<void>;
   addTasksBatch: (tasks: AiGeneratedTaskFromFile[], sprintId: string | null) => Promise<void>;
   addSprint: (sprintData: Omit<Sprint, 'id' | 'projectId' | 'createdAt' | 'status' | 'isDefault'> & { isDefault?: boolean }) => Promise<Sprint>;
   updateSprint: (sprintId: string, updates: Partial<Sprint>) => Promise<void>;
@@ -191,7 +185,6 @@ const viewOptions = [
   { id: 'board', label: 'Board', icon: LayoutDashboardIcon },
   { id: 'table', label: 'Table', icon: TableIcon },
   { id: 'graph', label: 'Graph', icon: GitBranchIcon },
-  { id: 'bugs', label: 'Bugs', icon: LifeBuoyIcon },
   { id: 'sprints', label: 'Sprints', icon: RocketIcon },
 ];
 
@@ -199,7 +192,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     project, currentUser, users, onlineUsers, aiFeaturesEnabled, onDragEnd, 
     updateTask, addSubtasks, addComment, addAiTask, addTask, deleteTask, addColumn, 
     deleteColumn, isChatOpen, onCloseChat, chatMessages, onSendMessage, onTaskClick, 
-    addProjectLink, deleteProjectLink, addBug, updateBug, deleteBug, addBugsBatch, deleteBugsBatch,
+    addProjectLink, deleteProjectLink,
     addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint,
     addFilterSegment, updateFilterSegment, deleteFilterSegment, duplicateTask
 }) => {
@@ -217,11 +210,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [relativeTimeCondition, setRelativeTimeCondition] = useState<FilterSegment['filters']['relativeTimeCondition']>('within');
   const [dateTarget, setDateTarget] = useState<'createdAt' | 'dueDate'>('createdAt');
   
-  const [projectView, setProjectView] = useState<'board' | 'table' | 'graph' | 'bugs' | 'sprints'>('board');
+  const [projectView, setProjectView] = useState<'board' | 'table' | 'graph' | 'sprints'>('board');
   const [tableCurrentPage, setTableCurrentPage] = useState(1);
   const TABLE_ITEMS_PER_PAGE = 15;
-  
-  const [initialBugSearch, setInitialBugSearch] = useState<string>('');
 
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>('all');
   const [isResourceMeshModalOpen, setIsResourceMeshModalOpen] = useState(false);
@@ -386,23 +377,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [headersToSelect, setHeadersToSelect] = useState<string[]>([]);
   const [fileForProcessing, setFileForProcessing] = useState<{ content: string; mimeType: string; name: string; } | null>(null);
   
-  // Bug specific triggers
-  const [bugTrigger, setBugTrigger] = useState<{ type: 'create' | 'import' | 'export' | null }>({ type: null });
-
   // Modals state
   const [isAiNexusOpen, setIsAiNexusOpen] = useState(false);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   
-  const handleNavigateToBug = (bugNumber: string) => {
-    setProjectView('bugs');
-    setInitialBugSearch(bugNumber);
-    onCloseChat();
-  };
-
-  const handleSetProjectView = (view: 'board' | 'table' | 'graph' | 'bugs' | 'sprints') => {
-    if (view !== 'bugs') {
-      setInitialBugSearch('');
-    }
+  const handleSetProjectView = (view: 'board' | 'table' | 'graph' | 'sprints') => {
     setProjectView(view);
   };
   
@@ -682,8 +661,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     return count;
   }, [searchTerm, priorityFilter, assigneeFilter, statusFilter, tagFilter, sprintFilter, startDate, endDate, relativeTimeValue]);
 
-  const activeBugsCount = useMemo(() => Object.keys(project.bugs || {}).length, [project.bugs]);
-
   return (
     <>
       <div className="flex flex-col lg:flex-row gap-6">
@@ -710,7 +687,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               {viewOptions.map(option => (
                 <button
                   key={option.id}
-                  onClick={() => handleSetProjectView(option.id)}
+                  onClick={() => handleSetProjectView(option.id as 'board' | 'table' | 'graph' | 'sprints')}
                   title={isSidebarCollapsed ? option.label : undefined}
                   className={`w-full relative flex items-center rounded-xl text-[10px] font-black uppercase tracking-widest transition-all group ${
                     isSidebarCollapsed ? 'justify-center h-12 w-12 mx-auto' : 'gap-3 px-3 py-2.5'
@@ -722,11 +699,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 >
                   <option.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${projectView === option.id ? 'text-black' : 'text-gray-500'}`} />
                   {!isSidebarCollapsed && <span className="flex-grow text-left">{option.label}</span>}
-                  {option.id === 'bugs' && activeBugsCount > 0 && (
-                      <span className={`bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md min-w-[15px] text-center ${isSidebarCollapsed ? 'absolute -top-1 -right-1 shadow-lg' : ''}`}>
-                          {activeBugsCount}
-                      </span>
-                  )}
                 </button>
               ))}
             </div>
@@ -734,14 +706,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
           <div className={`space-y-4 pt-4 border-t border-white/5 flex flex-col ${isSidebarCollapsed ? 'items-center' : ''}`}>
             {!isSidebarCollapsed && <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 px-1">Health Matrix</h3>}
-            <div className={`grid gap-2 w-full ${isSidebarCollapsed ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            <div className={`grid gap-2 w-full grid-cols-1`}>
                 <div className={`bg-white/5 rounded-xl border border-white/5 text-center flex flex-col items-center justify-center ${isSidebarCollapsed ? 'h-12 w-12 mx-auto' : 'p-3'}`}>
                   <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-0.5">{isSidebarCollapsed ? 'ITM' : 'Items'}</p>
                   <p className={`${isSidebarCollapsed ? 'text-[10px]' : 'text-sm'} font-black text-white`}>{Object.keys(project?.board?.tasks || {}).length}</p>
-                </div>
-                <div className={`bg-white/5 rounded-xl border border-white/5 text-center flex flex-col items-center justify-center ${isSidebarCollapsed ? 'h-12 w-12 mx-auto' : 'p-3'}`}>
-                  <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-0.5">{isSidebarCollapsed ? 'BUG' : 'Bugs'}</p>
-                  <p className={`${isSidebarCollapsed ? 'text-[10px]' : 'text-sm'} font-black text-white`}>{Object.keys(project.bugs || {}).length}</p>
                 </div>
             </div>
 
@@ -789,11 +757,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               {viewOptions.map(option => (
                 <button
                   key={option.id}
-                  onClick={() => handleSetProjectView(option.id)}
+                  onClick={() => handleSetProjectView(option.id as 'board' | 'table' | 'graph' | 'sprints')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex-shrink-0 ${
                     projectView === option.id 
-                      ? 'bg-white text-black shadow-lg shadow-white/10' 
-                      : 'text-gray-500 hover:bg-white/5 hover:text-white'
+                       ? 'bg-white text-black shadow-lg shadow-white/10' 
+                       : 'text-gray-500 hover:bg-white/5 hover:text-white'
                   }`}
                 >
                   <option.icon className="w-3.5 h-3.5" />
@@ -813,7 +781,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         className="flex-grow min-w-0 w-full space-y-6"
       >
         {/* Row 1: Segment Tabs */}
-        {!['bugs', 'sprints'].includes(projectView) && (
+        {projectView !== 'sprints' && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 px-1">
             <button 
               onClick={() => handleApplySegment('all')} 
@@ -855,15 +823,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         {/* Row 2: Unified Neural Control Bar */}
         <div className="bg-[#131C1B]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-2 flex flex-wrap items-center justify-between gap-3 shadow-2xl relative z-40">
           <div className="flex-grow flex items-center gap-3 min-w-0">
-            {projectView === 'bugs' ? (
-                <div className="flex items-center gap-2 px-3 h-8">
-                    <LifeBuoyIcon className="w-4 h-4 text-emerald-400" />
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Bug Tracker</h3>
-                    <span className="bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md min-w-[18px] text-center animate-pulse">
-                        {activeBugsCount}
-                    </span>
-                </div>
-            ) : !['bugs', 'sprints'].includes(projectView) ? (
+            {projectView !== 'sprints' ? (
               <Filters
                 projectId={project.id}
                 currentUser={currentUser}
@@ -910,34 +870,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {projectView === 'bugs' ? (
-
-                <>
-                  <button
-                    onClick={() => setBugTrigger({ type: 'export' })}
-                    className="flex items-center justify-center w-9 h-9 bg-white/5 border border-white/5 text-gray-500 rounded-xl hover:bg-white/10 hover:text-white transition-all shadow-xl"
-                    title="Export bugs"
-                  >
-                    <DownloadIcon className="w-3.5 h-3.5" />
-                  </button>
-                  {aiFeaturesEnabled && (
-                    <button
-                        onClick={() => setBugTrigger({ type: 'import' })}
-                        className="flex items-center gap-2 px-3 h-9 bg-white/5 border border-white/5 text-gray-400 rounded-xl hover:bg-white/10 hover:text-white transition-all shadow-xl text-[9px] font-black uppercase tracking-widest"
-                    >
-                        <SparklesIcon className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="hidden sm:inline">Import</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setBugTrigger({ type: 'create' })}
-                    className="flex items-center gap-2 px-4 h-9 bg-white text-black rounded-xl hover:bg-gray-200 transition-all shadow-xl shadow-white/5 text-[9px] font-black uppercase tracking-widest"
-                  >
-                    <PlusIcon className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Report Bug</span>
-                  </button>
-                </>
-              ) : !['bugs', 'sprints'].includes(projectView) && (
+            {projectView !== 'sprints' && (
                 <>
                   <button
                     onClick={() => setIsCreateTaskOpen(true)}
@@ -982,23 +915,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             </div>
           </div>
         
-          {projectView === 'bugs' ? (
-            <BugReporter
-                project={project}
-                users={users}
-                currentUser={currentUser}
-                onAddBug={(bugData) => addBug(project.id, bugData)}
-                onUpdateBug={updateBug}
-                onDeleteBug={deleteBug}
-                onAddBugsBatch={addBugsBatch}
-                onDeleteBugsBatch={deleteBugsBatch}
-                initialSearchTerm={initialBugSearch}
-                trigger={bugTrigger}
-                aiFeaturesEnabled={aiFeaturesEnabled}
-                onTriggerComplete={() => setBugTrigger({ type: null })}
-                hideReportButton={true}
-            />
-          ) : projectView === 'sprints' ? (
+          {projectView === 'sprints' ? (
         <SprintsPage
             project={project}
             onAddSprint={addSprint}
@@ -1083,7 +1000,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             onlineUsers={onlineUsers}
             onClose={onCloseChat}
             onSendMessage={onSendMessage}
-            onNavigateToBug={handleNavigateToBug}
         />
       )}
 

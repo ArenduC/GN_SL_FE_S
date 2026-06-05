@@ -1,4 +1,4 @@
-import { Project, User, AugmentedTask, Bug } from '../types';
+import { Project, User, AugmentedTask } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -197,88 +197,4 @@ export const exportTasksToPdf = (tasks: AugmentedTask[], projectName: string) =>
   doc.save(`${projectName.replace(/\s+/g, '_')}_tasks_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
-export const exportBugsToCsv = (bugs: Bug[], projectName: string, users: Record<string, User>) => {
-  const headers = [
-    'Bug ID', 'Project Name', 'Title', 'Description', 'Status', 'Priority', 
-    'Assignee ID', 'Assignee Name', 'Reporter ID', 'Reporter Name', 'Created At'
-  ];
 
-  const rows = bugs.map(bug => {
-    const assignee = bug.assignee ? users[bug.assignee.id] : null;
-    const reporter = users[bug.reporterId];
-
-    return [
-      bug.bugNumber || bug.id,
-      projectName,
-      bug.title,
-      bug.description,
-      bug.status,
-      bug.priority,
-      assignee?.id || '',
-      assignee?.name || 'Unassigned',
-      reporter?.id || '',
-      reporter?.name || 'Unknown',
-      bug.createdAt
-    ].map(escapeCsvField).join(',');
-  });
-
-  const csvContent = [headers.join(','), ...rows].join('\n');
-  
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob);
-    const timestamp = new Date().toISOString().slice(0, 10);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `bug_export_${projectName.replace(/\s+/g, '_')}_${timestamp}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-};
-
-export const exportBugsToPdf = (bugs: Bug[], projectName: string, users: Record<string, User>) => {
-  const doc = new jsPDF('landscape');
-  const timestamp = new Date().toLocaleString();
-  
-  doc.setFontSize(18);
-  doc.text(`${projectName} - Bug Reports`, 14, 20);
-  doc.setFontSize(10);
-  doc.text(`Generated on: ${timestamp}`, 14, 30);
-
-  const tableColumn = ["ID", "Title", "Status", "Priority", "Assignee", "Reporter", "Description", "Created At"];
-  const tableRows: any[] = [];
-
-  bugs.forEach(bug => {
-    const assignee = bug.assignee ? users[bug.assignee.id] : null;
-    const reporter = users[bug.reporterId];
-
-    tableRows.push([
-      bug.bugNumber || bug.id,
-      bug.title,
-      bug.status,
-      bug.priority,
-      assignee?.name || 'Unassigned',
-      reporter?.name || 'Unknown',
-      bug.description || '',
-      new Date(bug.createdAt).toLocaleDateString()
-    ]);
-  });
-
-  autoTable(doc, {
-    head: [tableColumn],
-    body: tableRows,
-    startY: 40,
-    styles: { fontSize: 7, cellPadding: 2 },
-    columnStyles: {
-      0: { cellWidth: 15 }, // ID
-      1: { cellWidth: 40 }, // Title
-      2: { cellWidth: 25 }, // Status
-      6: { cellWidth: 60 }, // Description
-    },
-    headStyles: { fillColor: [16, 185, 129] }, // Emerald color
-  });
-
-  doc.save(`bug_export_${projectName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`);
-};

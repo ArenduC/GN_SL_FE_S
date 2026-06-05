@@ -1,5 +1,5 @@
 import { Type, GoogleGenAI } from "@google/genai";
-import { TaskPriority, Project, User, AiGeneratedProjectPlan, AiGeneratedTaskFromFile, BugResponse } from "../types";
+import { TaskPriority, Project, User, AiGeneratedProjectPlan, AiGeneratedTaskFromFile } from "../types";
 import { GEMINI_API_KEY } from "../config";
 
 const BACKEND_URL = "https://kyla-postfebrile-jannette.ngrok-free.dev/api/gemini/generate";
@@ -231,10 +231,7 @@ export const generateProjectFromCsv = async (csv: string): Promise<AiGeneratedPr
     return await callGemini("gemini-3-pro-preview", `Generate project plan from CSV data: ${csv}`, projectFromCsvResponseSchema);
 };
 
-export const generateBugsFromFile = async (content: string, headers: string[]): Promise<BugResponse[]> => {
-    const prompt = `Extract bug reports from this content. Data: ${content}. Headers: ${headers}`;
-    return await callGemini("gemini-3-flash-preview", prompt, { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } } });
-};
+
 
 export const generateTasksFromFile = async (fileData: any, columns: string[], headers: string[]): Promise<AiGeneratedTaskFromFile[]> => {
     const prompt = `Map file data to tasks for these columns: ${columns}. Headers: ${headers}. Data: ${fileData.content}`;

@@ -117,27 +117,6 @@ export interface ProjectLink {
   createdAt: string;
 }
 
-export interface Bug {
-  id: string;
-  bugNumber: string;
-  title: string;
-  description: string;
-  priority: TaskPriority;
-  status: string;
-  assignee?: User;
-  reporterId: string;
-  createdAt: string;
-  position: number;
-  dueDate?: string;
-  assignedAt?: string;
-  assignedById?: string;
-}
-
-export interface BugResponse {
-  title: string;
-  description: string;
-}
-
 export interface Project {
   id: string;
   name: string;
@@ -149,8 +128,6 @@ export interface Project {
   updatedAt: string;
   chatMessages: ChatMessage[];
   links: ProjectLink[];
-  bugs: Record<string, Bug>;
-  bugOrder: string[];
   sprints: Sprint[];
   filterSegments: FilterSegment[];
 }

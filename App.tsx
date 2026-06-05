@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, createContext, useContext, useCallback, useMemo } from 'react';
-import { AppState, User, Project, Task, NewTaskData, Subtask, ChatMessage, TaskPriority, Bug, BugResponse, AiGeneratedTaskFromFile, Sprint, FilterSegment, FeedbackType } from './types';
+import { AppState, User, Project, Task, NewTaskData, Subtask, ChatMessage, TaskPriority, AiGeneratedTaskFromFile, Sprint, FilterSegment, FeedbackType } from './types';
 import { useAppState } from './hooks/useAppState';
 import { api } from './services/api';
 import { LandingPage } from './components/LandingPage';
@@ -8,7 +8,6 @@ import { DashboardPage } from './pages/DashboardPage';
 import { KanbanBoard } from './components/KanbanBoard';
 import { TasksPage } from './pages/TasksPage';
 import { ResourceManagementPage } from './pages/ResourceManagementPage';
-import { BugsPage } from './pages/BugsPage';
 import { SettingsModal } from './components/SettingsModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { CreateTaskModal } from './components/CreateTaskModal';
@@ -37,7 +36,7 @@ export const useConfirmation = () => {
   return context.confirm;
 };
 
-type View = 'dashboard' | 'tasks' | 'resources' | 'bugs';
+type View = 'dashboard' | 'tasks' | 'resources';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -56,7 +55,7 @@ const App: React.FC = () => {
     voice: !!localStorage.getItem('user_gemini_api_key'),
   });
 
-  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addBug, updateBug, deleteBug, addBugsBatch, deleteBugsBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment } = useAppState(session, currentUser, activeProjectId);
+  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment } = useAppState(session, currentUser, activeProjectId);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -338,9 +337,7 @@ const App: React.FC = () => {
               duplicateTask={(tid) => duplicateTask(project.id, tid)}
               addColumn={(t) => addColumn(project.id, t)} deleteColumn={(cid) => deleteColumn(project.id, cid)} isChatOpen={isChatOpen} onCloseChat={() => setIsChatOpen(false)} chatMessages={project.chatMessages}
               onSendMessage={(txt) => sendChatMessage(project.id, txt, currentUser)} onTaskClick={(t) => setSelectedTaskId(t.id)} addProjectLink={(t, u) => addProjectLink(project.id, t, u, currentUser.id)}
-              deleteProjectLink={deleteProjectLink} addBug={addBug} updateBug={updateBug} deleteBug={deleteBug} 
-              addBugsBatch={(bugs) => addBugsBatch(project.id, bugs)} 
-              deleteBugsBatch={deleteBugsBatch}
+              deleteProjectLink={deleteProjectLink} 
               addTasksBatch={(ts, sid) => addTasksBatch(project.id, ts, sid)} addSprint={(sd) => addSprint(project.id, sd)} updateSprint={(sid, up) => updateSprint(project.id, sid, up)}
               deleteSprint={(sid) => deleteSprint(project.id, sid)} bulkUpdateTaskSprint={bulkUpdateTaskSprint} completeSprint={completeSprint}
               addFilterSegment={(n, f) => addFilterSegment(project.id, n, f, currentUser.id)} updateFilterSegment={updateFilterSegment} deleteFilterSegment={deleteFilterSegment}

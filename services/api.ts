@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { User, Project, NewTaskData, Task, AppState, ChatMessage, ProjectInviteLink, UserRole, Subtask, Sprint, FilterSegment, BugResponse, Column, TaskHistory } from '../types';
+import { User, Project, NewTaskData, Task, AppState, ChatMessage, ProjectInviteLink, UserRole, Subtask, Sprint, FilterSegment, Column, TaskHistory } from '../types';
 import { Session, RealtimeChannel, AuthChangeEvent, User as SupabaseUser } from '@supabase/supabase-js';
 import { taskService } from './task.service';
 import client from '../api/client';
@@ -630,16 +630,6 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
             createdAt: lnk.createdAt || lnk.created_at || new Date().toISOString()
         }));
 
-        let bugs = p.bugs || {};
-        if (Array.isArray(bugs)) {
-            bugs = arrayToRecord(bugs);
-        }
-
-        let bugOrder = p.bugOrder || p.bug_order || [];
-        if (!Array.isArray(bugOrder)) {
-            bugOrder = Object.keys(bugs);
-        }
-
         let sprints = p.sprints || [];
         if (!Array.isArray(sprints)) sprints = [];
         const processedSprints = sprints.map((s: any) => ({
@@ -682,8 +672,6 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
             members: membersList,
             chatMessages,
             links: processedLinks,
-            bugs,
-            bugOrder,
             sprints: processedSprints,
             filterSegments: processedFilterSegments
         };
@@ -958,39 +946,7 @@ const deleteProjectLink = async (linkId: string) => {
     }
 };
 
-const addBug = async (bugData: any) => {
-    await supabase.from('bugs').insert({
-        project_id: bugData.projectId,
-        title: bugData.title,
-        description: bugData.description,
-        priority: bugData.priority,
-        status: bugData.status,
-        reporter_id: bugData.reporterId,
-        assignee_id: bugData.assigneeId || null
-    });
-};
 
-const addBugsBatch = async (bugs: any[]) => {
-    await supabase.from('bugs').insert(bugs);
-};
-
-const updateBug = async (bugId: string, updates: any) => {
-    await supabase.from('bugs').update({
-        title: updates.title,
-        description: updates.description,
-        priority: updates.priority,
-        status: updates.status,
-        assignee_id: updates.assigneeId
-    }).eq('id', bugId);
-};
-
-const deleteBug = async (bugId: string) => {
-    await supabase.from('bugs').delete().eq('id', bugId);
-};
-
-const deleteBugsBatch = async (bugIds: string[]) => {
-    await supabase.from('bugs').delete().in('id', bugIds);
-};
 
 const addSprint = async (sprintData: any) => {
     try {
@@ -1194,11 +1150,6 @@ export const api = {
         updateProjectMembers,
         addProjectLink,
         deleteProjectLink,
-        addBug,
-        addBugsBatch,
-        updateBug,
-        deleteBug,
-        deleteBugsBatch,
         addSprint,
         updateSprint,
         deleteSprint,

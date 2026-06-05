@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { DropResult } from 'react-beautiful-dnd';
-import { AppState, Task, NewTaskData, User, ChatMessage, AiGeneratedProjectPlan, Bug, TaskPriority, Subtask, AiGeneratedTaskFromFile, Sprint, FilterSegment, BugResponse, Project, TaskHistory } from '../types';
+import { AppState, Task, NewTaskData, User, ChatMessage, AiGeneratedProjectPlan, TaskPriority, Subtask, AiGeneratedTaskFromFile, Sprint, FilterSegment, Project, TaskHistory } from '../types';
 import { api, getTicketId } from '../services/api';
 import { generateTaskFromPrompt } from '../services/geminiService';
 import { Session } from '@supabase/supabase-js';
@@ -902,103 +902,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
       await fetchData();
   }, [fetchData, state.projects]);
 
-  const addBug = useCallback(async (projectId: string, bugData: { title: string, description: string, priority: TaskPriority }) => {
-    if (!currentUser) return;
-    const project = state.projects[projectId];
-    if (!project) return;
-    optimisticTouch(projectId);
-    const firstColumn = project.board.columns[project.board.columnOrder[0]];
-    const initialStatus = firstColumn ? firstColumn.title : 'New';
 
-    await api.data.addBug({
-        ...bugData,
-        projectId,
-        status: initialStatus,
-        reporterId: currentUser.id,
-    });
-    await fetchData();
-  }, [fetchData, currentUser, state.projects]);
-
-  const addBugsBatch = useCallback(async (projectId: string, parsedBugs: BugResponse[]) => {
-    if (!currentUser) return;
-    const project = state.projects[projectId];
-     if (!project) return;
-    optimisticTouch(projectId);
-    const firstColumn = project.board.columns[project.board.columnOrder[0]];
-    const initialStatus = firstColumn ? firstColumn.title : 'New';
-
-    if (parsedBugs.length > 0) {
-        const bugsToCreate = parsedBugs.map(b => ({
-            title: b.title,
-            description: b.description,
-            project_id: projectId, 
-            priority: TaskPriority.MEDIUM,
-            status: initialStatus,
-            reporter_id: currentUser.id, 
-        }));
-        await api.data.addBugsBatch(bugsToCreate);
-        await fetchData();
-    }
-  }, [fetchData, currentUser, state.projects]);
-
-  const updateBug = useCallback(async (bugId: string, updates: Partial<Bug>) => {
-    const projectEntry = (Object.entries(state.projects || {}) as [string, Project][]).find(([_, p]) => p.bugs && p.bugs[bugId]);
-    if (projectEntry) optimisticTouch(projectEntry[0]);
-
-    setState(prevState => {
-        const projectEntryLocal = (Object.entries(prevState.projects || {}) as [string, Project][]).find(([_, p]) => p.bugs && p.bugs[bugId]);
-        if (!projectEntryLocal) return prevState;
-        const [projectId, project] = projectEntryLocal;
-        
-        const newState = {
-            ...prevState,
-            projects: {
-                ...prevState.projects,
-                [projectId]: {
-                    ...(project as Project),
-                    bugs: {
-                        ...(project as Project).bugs,
-                        [bugId]: { ...(project as Project).bugs[bugId], ...updates }
-                    },
-                    updatedAt: new Date().toISOString()
-                }
-            }
-        };
-        syncCache(newState);
-        return newState;
-    });
-
-    try {
-        const { title, description, priority, status, assignee } = updates;
-        await api.data.updateBug(bugId, {
-            title,
-            description,
-            priority,
-            status,
-            assigneeId: assignee?.id ?? (assignee === undefined ? undefined : null), 
-        });
-    } catch (err) {
-        await fetchData();
-    }
-  }, [fetchData, state.projects]);
-
-  const deleteBug = useCallback(async (bugId: string) => {
-    // FIX: Cast Object.values to Project[] to avoid unknown type errors when searching for the project containing the bug.
-    const projectEntry = (Object.values(state.projects || {}) as Project[]).find(p => p.bugs && p.bugs[bugId]);
-    if (projectEntry) optimisticTouch(projectEntry.id);
-    await api.data.deleteBug(bugId);
-    await fetchData();
-  }, [fetchData, state.projects]);
-
-  const deleteBugsBatch = useCallback(async (bugIds: string[]) => {
-    if (bugIds.length > 0) {
-        // FIX: Cast Object.values to Project[] to avoid unknown type errors when searching for the project containing the bugs.
-        const projectEntry = (Object.values(state.projects || {}) as Project[]).find(p => p.bugs && p.bugs[bugIds[0]]);
-        if (projectEntry) optimisticTouch(projectEntry.id);
-    }
-    await api.data.deleteBugsBatch(bugIds);
-    await fetchData();
-  }, [fetchData, state.projects]);
 
   const addSprint = useCallback(async (projectId: string, sprintData: Omit<Sprint, 'id' | 'projectId' | 'createdAt' | 'status' | 'isDefault'> & { isDefault?: boolean }): Promise<Sprint> => {
     optimisticTouch(projectId);
@@ -1126,5 +1030,5 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
   }, [state.projects, currentUser, fetchData]);
 
 
-  return { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addTask, duplicateTask, addAiTask, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addBug, updateBug, deleteBug, addBugsBatch, deleteBugsBatch, addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment };
+  return { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addTask, duplicateTask, addAiTask, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment };
 };
