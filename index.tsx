@@ -1,7 +1,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import { StoreProvider } from './app/providers/StoreProvider';
+import { AppRoutes } from './app/routes/AppRoutes';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,6 +12,9 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <StoreProvider>
+      <AppRoutes />
+    </StoreProvider>
   </React.StrictMode>
 );
+

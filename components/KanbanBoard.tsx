@@ -1,12 +1,14 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
 import { StrictModeDroppable } from './StrictModeDroppable';
 import { Column as ColumnType, BoardData, Task, Subtask, User, ChatMessage, FilterSegment, Project, TaskPriority, AiGeneratedTaskFromFile, Sprint, NewTaskData } from '../types';
 import { Column } from './Column';
 import { Filters } from './Filters';
+import { RightControlDeck } from './RightControlDeck';
 import { PlusIcon, LayoutDashboardIcon, GitBranchIcon, TableIcon, LifeBuoyIcon, RocketIcon, DownloadIcon, XIcon, SparklesIcon, ZapIcon, LinkIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
 import { ProjectChat } from './ProjectChat';
 import { AiTaskCreator } from './AiTaskCreator';
@@ -35,6 +37,8 @@ interface KanbanBoardProps {
   users: User[];
   onlineUsers: Set<string>;
   aiFeaturesEnabled: boolean;
+  projectView: 'board' | 'table' | 'graph' | 'sprints';
+  setProjectView: (view: 'board' | 'table' | 'graph' | 'sprints') => void;
   onDragEnd: (result: DropResult, filteredData?: BoardData) => Promise<void>;
   updateTask: (task: Task) => Promise<void>;
   addSubtasks: (taskId: string, subtasks: Partial<Subtask>[], creatorId: string) => Promise<void>;
@@ -189,13 +193,16 @@ const viewOptions = [
 ];
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ 
-    project, currentUser, users, onlineUsers, aiFeaturesEnabled, onDragEnd, 
+    project, currentUser, users, onlineUsers, aiFeaturesEnabled,
+    projectView, setProjectView,
+    onDragEnd, 
     updateTask, addSubtasks, addComment, addAiTask, addTask, deleteTask, addColumn, 
     deleteColumn, isChatOpen, onCloseChat, chatMessages, onSendMessage, onTaskClick, 
     addProjectLink, deleteProjectLink,
     addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint,
     addFilterSegment, updateFilterSegment, deleteFilterSegment, duplicateTask
 }) => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
@@ -210,13 +217,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [relativeTimeCondition, setRelativeTimeCondition] = useState<FilterSegment['filters']['relativeTimeCondition']>('within');
   const [dateTarget, setDateTarget] = useState<'createdAt' | 'dueDate'>('createdAt');
   
-  const [projectView, setProjectView] = useState<'board' | 'table' | 'graph' | 'sprints'>('board');
   const [tableCurrentPage, setTableCurrentPage] = useState(1);
   const TABLE_ITEMS_PER_PAGE = 15;
 
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>('all');
   const [isResourceMeshModalOpen, setIsResourceMeshModalOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isControlDeckOpen, setIsControlDeckOpen] = useState(true);
   
   const boardData = project.board;
   const requestConfirmation = useConfirmation();
@@ -347,6 +353,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         columns: newColumns
     };
   }, [boardData, searchTerm, priorityFilter, assigneeFilter, reporterFilter, statusFilter, tagFilter, sprintFilter, startDate, endDate, relativeTimeValue, relativeTimeUnit, relativeTimeCondition, dateTarget]);
+
+  const allTasks = useMemo(() => {
+    return Object.values(project?.board?.tasks || {}) as Task[];
+  }, [project?.board?.tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return Object.values(filteredBoardData?.tasks || {}) as Task[];
+  }, [filteredBoardData?.tasks]);
 
   // FIX: Explicitly filter users to only those who are members of this project
   const projectMembers = useMemo(() => {
@@ -663,119 +677,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Neural Sidebar */}
-      <motion.aside 
-        initial={false}
-        animate={{ width: isSidebarCollapsed ? 80 : 288 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="hidden lg:flex lg:fixed lg:left-6 lg:top-24 lg:bottom-6 flex-shrink-0 flex-col z-20"
-      >
-        {/* Collapse Toggle */}
-        <button 
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3 top-4 w-6 h-6 bg-emerald-500 text-black rounded-full shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-30 border-none"
-        >
-          {isSidebarCollapsed ? <ChevronRightIcon className="w-3.5 h-3.5" /> : <ChevronLeftIcon className="w-3.5 h-3.5" />}
-        </button>
-
-        {/* View Switcher Sidebar Section */}
-        <div className={`bg-[#1C2326]/50 backdrop-blur-sm border border-white/5 rounded-2xl flex-grow space-y-6 shadow-2xl transition-all flex flex-col overflow-y-auto no-scrollbar ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>
-          <div className="space-y-4">
-            {!isSidebarCollapsed && <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 px-1">Navigation</h3>}
-            <div className="space-y-2">
-              {viewOptions.map(option => (
-                <button
-                  key={option.id}
-                  onClick={() => handleSetProjectView(option.id as 'board' | 'table' | 'graph' | 'sprints')}
-                  title={isSidebarCollapsed ? option.label : undefined}
-                  className={`w-full relative flex items-center rounded-xl text-[10px] font-black uppercase tracking-widest transition-all group ${
-                    isSidebarCollapsed ? 'justify-center h-12 w-12 mx-auto' : 'gap-3 px-3 py-2.5'
-                  } ${
-                    projectView === option.id 
-                      ? 'bg-white text-black shadow-lg shadow-white/10' 
-                      : 'text-gray-500 hover:bg-white/5 hover:text-white'
-                  }`}
-                >
-                  <option.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${projectView === option.id ? 'text-black' : 'text-gray-500'}`} />
-                  {!isSidebarCollapsed && <span className="flex-grow text-left">{option.label}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={`space-y-4 pt-4 border-t border-white/5 flex flex-col ${isSidebarCollapsed ? 'items-center' : ''}`}>
-            {!isSidebarCollapsed && <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 px-1">Health Matrix</h3>}
-            <div className={`grid gap-2 w-full grid-cols-1`}>
-                <div className={`bg-white/5 rounded-xl border border-white/5 text-center flex flex-col items-center justify-center ${isSidebarCollapsed ? 'h-12 w-12 mx-auto' : 'p-3'}`}>
-                  <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-0.5">{isSidebarCollapsed ? 'ITM' : 'Items'}</p>
-                  <p className={`${isSidebarCollapsed ? 'text-[10px]' : 'text-sm'} font-black text-white`}>{Object.keys(project?.board?.tasks || {}).length}</p>
-                </div>
-            </div>
-
-            
-            {!isSidebarCollapsed && (
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Active Velocity</span>
-                    <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">88%</span>
-                  </div>
-                  <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]" style={{ width: '88%' }}></div>
-                  </div>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4 pt-4 border-t border-white/5">
-            {!isSidebarCollapsed && <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 px-1">Network Hub</h3>}
-            <button 
-              onClick={() => setIsResourceMeshModalOpen(true)}
-              title={isSidebarCollapsed ? "Resource Mesh" : undefined}
-              className={`w-full flex items-center bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20 transition-all group ${
-                isSidebarCollapsed ? 'justify-center h-12' : 'gap-3 px-3 py-3'
-              }`}
-            >
-              <ZapIcon className="w-5 h-5 animate-pulse" />
-              {!isSidebarCollapsed && (
-                <>
-                  <span className="flex-grow text-left">Resource Mesh</span>
-                  <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black px-1.5 py-0.5 rounded-md min-w-[15px] text-center">
-                      {project.links.length}
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </motion.aside>
-
-      {/* Mobile Sidebar (Fixed) */}
-      <aside className="lg:hidden w-full flex-shrink-0 space-y-6 mb-6">
-        <div className="bg-[#1C2326]/50 backdrop-blur-sm border border-white/5 rounded-2xl p-4 space-y-6">
-          <div className="flex overflow-x-auto no-scrollbar gap-2">
-              {viewOptions.map(option => (
-                <button
-                  key={option.id}
-                  onClick={() => handleSetProjectView(option.id as 'board' | 'table' | 'graph' | 'sprints')}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex-shrink-0 ${
-                    projectView === option.id 
-                       ? 'bg-white text-black shadow-lg shadow-white/10' 
-                       : 'text-gray-500 hover:bg-white/5 hover:text-white'
-                  }`}
-                >
-                  <option.icon className="w-3.5 h-3.5" />
-                  {option.label}
-                </button>
-              ))}
-          </div>
-        </div>
-      </aside>
-
       {/* Main content stage */}
       <motion.div 
         animate={{ 
-          marginLeft: isSidebarCollapsed ? 112 : 336 
+          marginLeft: '0px',
+          paddingRight: isControlDeckOpen ? '368px' : '48px'
         }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="flex-grow min-w-0 w-full space-y-6"
@@ -784,136 +690,49 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         {projectView !== 'sprints' && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 px-1">
             <button 
-              onClick={() => handleApplySegment('all')} 
+              onClick={() => {
+                handleApplySegment('all');
+              }} 
               className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.15em] rounded-full transition-all flex-shrink-0 ${activeSegmentId === 'all' ? 'bg-white text-black shadow-lg shadow-white/5' : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'}`}
             >
               All Scope
             </button>
-            {(project.filterSegments || []).map(segment => (
-              <div key={segment.id} className="relative group flex-shrink-0">
-                  <button 
-                    onClick={() => handleApplySegment(segment.id)} 
-                    className={`pl-3 ${activeSegmentId === segment.id ? 'pr-12' : 'pr-3'} py-1.5 text-[9px] font-black uppercase tracking-[0.15em] rounded-full transition-all ${activeSegmentId === segment.id ? 'bg-white text-black shadow-lg shadow-white/5' : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'}`}
-                  >
-                    {segment.name}
-                  </button>
-                  {activeSegmentId === segment.id && (
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                        <button 
-                            onClick={(e) => handleCopyViewLink(e, segment.id)}
-                            className="w-4 h-4 flex items-center justify-center text-black hover:text-emerald-600 transition-colors"
-                            title="Copy shareable link"
-                        >
-                            {copiedViewId === segment.id ? <CheckIcon className="w-2.5 h-2.5" /> : <LinkIcon className="w-2.5 h-2.5" />}
-                        </button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); handleDeleteSegmentConfirmation(segment); }}
-                            className="w-4 h-4 flex items-center justify-center text-black hover:text-red-600 transition-colors"
-                            title="Delete view"
-                        >
-                            <XIcon className="w-2.5 h-2.5" />
-                        </button>
-                    </div>
-                  )}
-              </div>
-            ))}
+            {(project.filterSegments || [])
+              .filter(segment => segment.name.toUpperCase() !== 'ADD')
+              .map(segment => (
+                <div key={segment.id} className="relative group flex-shrink-0">
+                    <button 
+                      onClick={() => {
+                        handleApplySegment(segment.id);
+                      }} 
+                      className={`pl-3 ${activeSegmentId === segment.id ? 'pr-12' : 'pr-3'} py-1.5 text-[9px] font-black uppercase tracking-[0.15em] rounded-full transition-all ${activeSegmentId === segment.id ? 'bg-white text-black shadow-lg shadow-white/5' : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'}`}
+                    >
+                      {segment.name}
+                    </button>
+                    {activeSegmentId === segment.id && (
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          <button 
+                              onClick={(e) => handleCopyViewLink(e, segment.id)}
+                              className="w-4 h-4 flex items-center justify-center text-black hover:text-emerald-600 transition-colors"
+                              title="Copy shareable link"
+                          >
+                              {copiedViewId === segment.id ? <CheckIcon className="w-2.5 h-2.5" /> : <LinkIcon className="w-2.5 h-2.5" />}
+                          </button>
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); handleDeleteSegmentConfirmation(segment); }}
+                              className="w-4 h-4 flex items-center justify-center text-black hover:text-red-600 transition-colors"
+                              title="Delete view"
+                          >
+                              <XIcon className="w-2.5 h-2.5" />
+                          </button>
+                      </div>
+                    )}
+                </div>
+              ))}
           </div>
         )}
 
-        {/* Row 2: Unified Neural Control Bar */}
-        <div className="bg-[#131C1B]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-2 flex flex-wrap items-center justify-between gap-3 shadow-2xl relative z-40">
-          <div className="flex-grow flex items-center gap-3 min-w-0">
-            {projectView !== 'sprints' ? (
-              <Filters
-                projectId={project.id}
-                currentUser={currentUser}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                priorityFilter={priorityFilter}
-                setPriorityFilter={setPriorityFilter}
-                assigneeFilter={assigneeFilter}
-                setAssigneeFilter={setAssigneeFilter}
-                reporterFilter={reporterFilter}
-                setReporterFilter={setReporterFilter}
-                statusFilter={statusFilter}
-                setStatusFilter={setStatusFilter}
-                tagFilter={tagFilter}
-                setTagFilter={setTagFilter}
-                sprintFilter={sprintFilter}
-                setSprintFilter={setSprintFilter}
-                sprints={project.sprints || []}
-                startDate={startDate}
-                setStartDate={setStartDate}
-                endDate={endDate}
-                setEndDate={setEndDate}
-                relativeTimeValue={relativeTimeValue}
-                setRelativeTimeValue={setRelativeTimeValue}
-                relativeTimeUnit={relativeTimeUnit}
-                setRelativeTimeUnit={setRelativeTimeUnit}
-                relativeTimeCondition={relativeTimeCondition}
-                setRelativeTimeCondition={setRelativeTimeCondition}
-                assigneeOptions={uniqueAssignees.map(u => ({ value: u.id, label: u.name }))}
-                reporterOptions={uniqueReporters.map(u => ({ value: u.id, label: u.name }))}
-                statuses={uniqueStatuses}
-                tags={uniqueTags}
-                segments={project.filterSegments}
-                activeSegmentId={activeSegmentId}
-                onAddSegment={addFilterSegment}
-                onUpdateSegment={updateFilterSegment}
-                onDeleteSegment={deleteFilterSegment}
-                onApplySegment={handleApplySegment}
-                onClearFilters={handleClearFilters}
-                dateTarget={dateTarget}
-                setDateTarget={setDateTarget}
-              />
-            ) : null}
-          </div>
 
-          <div className="flex items-center gap-2">
-            {projectView !== 'sprints' && (
-                <>
-                  <button
-                    onClick={() => setIsCreateTaskOpen(true)}
-                    className="flex items-center gap-2 px-4 h-9 bg-white text-black rounded-xl hover:bg-gray-200 transition-all shadow-xl shadow-white/5 text-[9px] font-black uppercase tracking-widest"
-                  >
-                    <PlusIcon className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">New Task</span>
-                  </button>
-
-                  {aiFeaturesEnabled && (
-                    <button
-                        onClick={() => setIsAiNexusOpen(true)}
-                        className="group flex items-center gap-2 px-3 h-9 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all shadow-xl text-[9px] font-black uppercase tracking-widest overflow-hidden relative"
-                    >
-                        <SparklesIcon className="w-3.5 h-3.5 animate-pulse" />
-                        <span className="relative z-10 hidden sm:inline">Neural Nexus</span>
-                        <span className="relative z-10 sm:hidden">AI</span>
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={handleExport}
-                    className="flex items-center justify-center w-9 h-9 bg-white/5 border border-white/5 text-gray-400 rounded-xl hover:bg-white/10 hover:text-white transition-all shadow-xl text-[9px] font-black uppercase tracking-widest"
-                    title="Export CSV"
-                  >
-                    CSV
-                  </button>
-
-                  <button
-                    onClick={handleExportPdf}
-                    className="flex items-center justify-center w-9 h-9 bg-white/5 border border-white/5 text-gray-400 rounded-xl hover:bg-white/10 hover:text-white transition-all shadow-xl text-[9px] font-black uppercase tracking-widest"
-                    title="Export PDF"
-                  >
-                    PDF
-                  </button>
-                  
-                  {projectView === 'board' && (
-                    <AddColumn onAddColumn={addColumn} />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
         
           {projectView === 'sprints' ? (
         <SprintsPage
@@ -989,7 +808,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         <TaskGraphView boardData={filteredBoardData} users={users} onTaskClick={onTaskClick} />
       )}
       </motion.div>
-    </div>
       
        {isChatOpen && (
         <ProjectChat 
@@ -1013,7 +831,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           onTaskClick={onTaskClick}
           onAddTask={() => {
             setIsResourceMeshModalOpen(false);
-            setIsCreateTaskOpen(true);
+            navigate(`/project/${project.id}/create-task`);
           }}
           addProjectLink={addProjectLink}
           deleteProjectLink={deleteProjectLink}
@@ -1082,16 +900,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
       )}
 
-      {isCreateTaskOpen && (
-        <CreateTaskModal 
-          columns={Object.values(project?.board?.columns || {})} 
-          users={projectMembers} 
-          sprints={project.sprints} 
-          onClose={() => setIsCreateTaskOpen(false)} 
-          onAddTask={addTask} 
-          onAddSprint={addSprint} 
-        />
-      )}
+
 
       {isSelectHeadersModalOpen && fileForProcessing && (
           <SelectHeadersModal
@@ -1136,6 +945,48 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             projectSprints={project.sprints}
             onConfirm={handleConfirmCompleteSprint}
           />
+      )}
+
+      {projectView !== 'sprints' && (
+        <RightControlDeck
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          assignees={users}
+          sprints={project.sprints || []}
+          statuses={uniqueStatuses}
+          tags={uniqueTags}
+          priorityFilter={priorityFilter}
+          setPriorityFilter={setPriorityFilter}
+          assigneeFilter={assigneeFilter}
+          setAssigneeFilter={setAssigneeFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          tagFilter={tagFilter}
+          setTagFilter={setTagFilter}
+          startDate={startDate}
+          setStartDate={setStartDate}
+          endDate={endDate}
+          setEndDate={setEndDate}
+          onClearFilters={handleClearFilters}
+          onExportCsv={handleExport}
+          onExportPdf={handleExportPdf}
+          filteredCount={filteredTasks.length}
+          totalCount={allTasks.length}
+          isOpen={isControlDeckOpen}
+          onToggleIsOpen={setIsControlDeckOpen}
+          onNewTaskClick={() => navigate(`/project/${project.id}/create-task`)}
+          onAddColumn={addColumn}
+          onResourceMeshClick={() => setIsResourceMeshModalOpen(true)}
+          linksCount={project.links?.length || 0}
+          onNeuralNexusClick={() => setIsAiNexusOpen(true)}
+          aiFeaturesEnabled={aiFeaturesEnabled}
+          projectView={projectView}
+          projectColumnsList={Object.values(project?.board?.columns || {}).map(col => ({
+            id: col.id,
+            name: col.title,
+            taskIds: col.taskIds || []
+          }))}
+        />
       )}
     </>
   );

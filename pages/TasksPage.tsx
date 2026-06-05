@@ -3,7 +3,7 @@ import { Project, User, AugmentedTask, Task, FilterSegment, Column, Sprint } fro
 import { DownloadIcon, XIcon } from '../components/Icons';
 import { exportAugmentedTasksToCsv, exportTasksToPdf } from '../utils/export';
 import { TaskListRow } from '../components/TaskListRow';
-import { Filters } from '../components/Filters';
+import { RightControlDeck } from '../components/RightControlDeck';
 import { Pagination } from '../components/Pagination';
 import { TaskInsights } from '../components/TaskInsights';
 import { useConfirmation } from '../App';
@@ -37,6 +37,33 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
+
+  // Sorting state
+  const [sortField, setSortField] = useState<'ticketId' | 'title' | 'projectName' | 'priority' | 'columnName' | 'assignee'>('ticketId');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Column Visibility state
+  const [visibleColumns, setVisibleColumns] = useState({
+    id: true,
+    title: true,
+    project: true,
+    priority: true,
+    status: true,
+    assignee: true
+  });
+  const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
+
+  // Bulk Selection state
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   const requestConfirmation = useConfirmation();
   const storageKey = 'tasks-page-segments';
@@ -310,8 +337,37 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
         }
     }
 
-    return tasks;
-  }, [allTasks, viewMode, currentUser.id, searchTerm, priorityFilter, assigneeFilter, statusFilter, tagFilter, sprintFilter, startDate, endDate, relativeTimeValue, relativeTimeUnit, relativeTimeCondition, dateTarget]);
+    // Apply Sorting
+    const sorted = [...tasks];
+    sorted.sort((a, b) => {
+      let valA = '';
+      let valB = '';
+      if (sortField === 'ticketId') {
+        valA = a.ticketId || '';
+        valB = b.ticketId || '';
+      } else if (sortField === 'title') {
+        valA = a.title || '';
+        valB = b.title || '';
+      } else if (sortField === 'projectName') {
+        valA = a.projectName || '';
+        valB = b.projectName || '';
+      } else if (sortField === 'priority') {
+        valA = a.priority || '';
+        valB = b.priority || '';
+      } else if (sortField === 'columnName') {
+        valA = a.columnName || '';
+        valB = b.columnName || '';
+      } else if (sortField === 'assignee') {
+        valA = a.assignee?.name || '';
+        valB = b.assignee?.name || '';
+      }
+      return sortDirection === 'asc' 
+        ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' }) 
+        : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return sorted;
+  }, [allTasks, viewMode, currentUser.id, searchTerm, priorityFilter, assigneeFilter, statusFilter, tagFilter, sprintFilter, startDate, endDate, relativeTimeValue, relativeTimeUnit, relativeTimeCondition, dateTarget, sortField, sortDirection]);
   
   useEffect(() => {
     setCurrentPage(1);
@@ -328,18 +384,76 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
     exportTasksToPdf(filteredTasks, "Global View");
   };
 
+  const isAllSelected = paginatedTasks.length > 0 && paginatedTasks.every(t => selectedTaskIds.includes(t.id));
+
+  const handleSelectAllToggle = () => {
+    if (isAllSelected) {
+      setSelectedTaskIds(selectedTaskIds.filter(id => !paginatedTasks.some(t => t.id === id)));
+    } else {
+      const newSelections = [...selectedTaskIds];
+      paginatedTasks.forEach(t => {
+        if (!newSelections.includes(t.id)) {
+          newSelections.push(t.id);
+        }
+      });
+      setSelectedTaskIds(newSelections);
+    }
+  };
+
+  const handleSelectTaskToggle = (taskId: string) => {
+    if (selectedTaskIds.includes(taskId)) {
+      setSelectedTaskIds(selectedTaskIds.filter(id => id !== taskId));
+    } else {
+      setSelectedTaskIds([...selectedTaskIds, taskId]);
+    }
+  };
+
   return (
-    <div className="max-w-[1500px] mx-auto pb-12">
-      <TaskInsights tasks={filteredTasks} />
+    <div className="w-full relative pr-0 lg:pr-80 pb-12">
+      <div className="flex-grow min-w-0 space-y-6">
+        <TaskInsights tasks={filteredTasks} />
 
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold text-white">Neural Nodes</h2>
+          <h2 className="text-sm font-black uppercase text-white tracking-widest">Neural Nodes</h2>
           <div className="bg-emerald-500/10 text-emerald-400 text-[9px] font-black px-2 py-1 rounded-lg border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
             {filteredTasks.length} <span className="text-emerald-400/50">/ {allTasks.length} Nodes</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Column Visibility Trigger Button */}
+          <div className="relative">
+            <button 
+              onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 border border-gray-700 text-white font-bold rounded-lg hover:bg-gray-700 transition-all text-[10px]"
+              title="Toggle Columns"
+            >
+              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15m-12-3h18" />
+              </svg>
+              <span>Dynamic Columns</span>
+            </button>
+            {isColumnDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-[#0E1314] border border-white/10 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest px-2 py-1 mb-1 border-b border-white/5">Show/Hide Columns</p>
+                {Object.keys(visibleColumns).map((key) => (
+                  <label key={key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-white/5 cursor-pointer capitalize">
+                    <input 
+                      type="checkbox" 
+                      checked={visibleColumns[key as keyof typeof visibleColumns]}
+                      onChange={() => setVisibleColumns({
+                        ...visibleColumns,
+                        [key]: !visibleColumns[key as keyof typeof visibleColumns]
+                      })}
+                      className="rounded border-white/10 bg-black/40 text-emerald-500 focus:ring-emerald-500 accent-emerald-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>{key === 'id' ? 'ID' : key}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center p-1 bg-[#1C2326] rounded-lg">
             <button onClick={() => setViewMode('all')} className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${viewMode === 'all' ? 'bg-gray-700 text-white' : 'hover:bg-gray-800/50 text-gray-400'}`}>
               Global
@@ -366,7 +480,9 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
             >
                 All Scope
             </button>
-            {segments.map(segment => (
+            {segments
+              .filter(segment => segment.name.toUpperCase() !== 'ADD')
+              .map(segment => (
                 <div key={segment.id} className="relative group flex-shrink-0">
                     <button 
                         onClick={() => handleApplySegment(segment.id)} 
@@ -387,60 +503,94 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
             ))}
         </div>
 
-        <Filters
-            projectId="all-tasks"
-            currentUser={currentUser}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            priorityFilter={priorityFilter}
-            setPriorityFilter={setPriorityFilter}
-            assigneeFilter={assigneeFilter}
-            setAssigneeFilter={setAssigneeFilter}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            tagFilter={tagFilter}
-            setTagFilter={setTagFilter}
-            sprintFilter={sprintFilter}
-            setSprintFilter={setSprintFilter}
-            sprints={allSprints}
-            startDate={startDate}
-            setStartDate={setStartDate}
-            endDate={endDate}
-            setEndDate={setEndDate}
-            relativeTimeValue={relativeTimeValue}
-            setRelativeTimeValue={setRelativeTimeValue}
-            relativeTimeUnit={relativeTimeUnit}
-            setRelativeTimeUnit={setRelativeTimeUnit}
-            relativeTimeCondition={relativeTimeCondition}
-            setRelativeTimeCondition={setRelativeTimeCondition}
-            assigneeOptions={assigneeOptions}
-            statuses={allStatuses}
-            tags={allTags}
-            segments={segments}
-            activeSegmentId={activeSegmentId}
-            onAddSegment={handleAddSegment}
-            onUpdateSegment={handleUpdateSegment}
-            onDeleteSegment={handleDeleteSegment}
-            onApplySegment={handleApplySegment}
-            onClearFilters={handleClearFilters}
-            dateTarget={dateTarget}
-            setDateTarget={setDateTarget}
-          />
       </div>
 
-      <div className="bg-[#131C1B]/80 backdrop-blur-xl rounded-xl border border-white/5 overflow-hidden shadow-2xl">
-        <div className="grid grid-cols-12 gap-4 items-center px-5 py-2.5 border-b border-white/5 bg-white/5">
-          <div className="col-span-1 font-bold text-[9px] uppercase tracking-[0.2em] text-gray-500">ID</div>
-          <div className="col-span-3 font-bold text-[9px] uppercase tracking-[0.2em] text-gray-500">Node Cluster</div>
-          <div className="col-span-2 font-bold text-[9px] uppercase tracking-[0.2em] text-gray-500">Project Nexus</div>
-          <div className="col-span-2 font-bold text-[9px] uppercase tracking-[0.2em] text-gray-500">Priority</div>
-          <div className="col-span-2 font-bold text-[9px] uppercase tracking-[0.2em] text-gray-500">Status</div>
-          <div className="col-span-2 font-bold text-[9px] uppercase tracking-[0.2em] text-gray-500 text-right">Resource</div>
+      <div className="bg-[#131C1B]/80 backdrop-blur-xl rounded-xl border border-white/5 overflow-hidden shadow-2xl relative">
+        {/* Sticky Header with Sorting columns */}
+        <div className="sticky top-0 z-10 flex items-center gap-4 px-6 py-3 border-b border-white/5 bg-[#101718]">
+          
+          <div className="w-10 flex-shrink-0">
+            <input 
+              type="checkbox" 
+              checked={isAllSelected}
+              onChange={handleSelectAllToggle}
+              className="w-4 h-4 rounded border-white/10 bg-black/40 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 focus:outline-none cursor-pointer transition-all accent-emerald-500"
+            />
+          </div>
+
+          {visibleColumns.id && (
+            <button 
+              onClick={() => handleSort('ticketId')}
+              className="w-20 flex-shrink-0 text-left font-black text-[9px] uppercase tracking-[0.2em] text-gray-500 flex items-center gap-1 hover:text-emerald-400 transition-colors"
+            >
+              <span>ID</span>
+              {sortField === 'ticketId' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </button>
+          )}
+
+          {visibleColumns.title && (
+            <button 
+              onClick={() => handleSort('title')}
+              className="flex-grow text-left font-black text-[9px] uppercase tracking-[0.2em] text-gray-500 flex items-center gap-1 hover:text-emerald-400 transition-colors"
+            >
+              <span>Node Cluster</span>
+              {sortField === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </button>
+          )}
+
+          {visibleColumns.project && (
+            <button 
+              onClick={() => handleSort('projectName')}
+              className="w-32 flex-shrink-0 text-left font-black text-[9px] uppercase tracking-[0.2em] text-gray-500 flex items-center gap-1 hover:text-emerald-400 transition-colors"
+            >
+              <span>Project Nexus</span>
+              {sortField === 'projectName' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </button>
+          )}
+
+          {visibleColumns.priority && (
+            <button 
+              onClick={() => handleSort('priority')}
+              className="w-24 flex-shrink-0 text-left font-black text-[9px] uppercase tracking-[0.2em] text-gray-500 flex items-center gap-1 hover:text-emerald-400 transition-colors"
+            >
+              <span>Priority</span>
+              {sortField === 'priority' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </button>
+          )}
+
+          {visibleColumns.status && (
+            <button 
+              onClick={() => handleSort('columnName')}
+              className="w-28 flex-shrink-0 text-left font-black text-[9px] uppercase tracking-[0.2em] text-gray-500 flex items-center gap-1 hover:text-emerald-400 transition-colors"
+            >
+              <span>Status</span>
+              {sortField === 'columnName' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </button>
+          )}
+
+          {visibleColumns.assignee && (
+            <button 
+              onClick={() => handleSort('assignee')}
+              className="w-36 flex-shrink-0 text-right font-black text-[9px] uppercase tracking-[0.2em] text-gray-500 flex items-center justify-end gap-1 hover:text-emerald-400 transition-colors"
+            >
+              <span>Resource</span>
+              {sortField === 'assignee' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </button>
+          )}
         </div>
+
         <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
             {paginatedTasks.length > 0 ? (
                 paginatedTasks.map(task => (
-                    <TaskListRow key={task.id} task={task} onClick={onTaskClick} users={users} />
+                    <TaskListRow 
+                      key={task.id} 
+                      task={task} 
+                      onClick={onTaskClick} 
+                      users={users} 
+                      visibleColumns={visibleColumns}
+                      isSelected={selectedTaskIds.includes(task.id)}
+                      onToggleSelect={() => handleSelectTaskToggle(task.id)}
+                    />
                 ))
             ) : (
                 <div className="p-16 text-center text-gray-500 font-mono text-xs italic uppercase tracking-widest">
@@ -450,6 +600,73 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
         </div>
       </div>
       <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} itemsPerPage={ITEMS_PER_PAGE} totalItems={filteredTasks.length} />
+
+      {/* Floating Action Drawer for Bulk Actions */}
+      {selectedTaskIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#0E1314]/95 border border-emerald-500/30 rounded-2xl p-4 shadow-2xl flex items-center gap-6 z-50 animate-in slide-in-from-bottom duration-250 backdrop-blur-xl">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 absolute" />
+            <span className="text-xs font-bold text-white pl-3">{selectedTaskIds.length} tasks selected</span>
+          </div>
+          <div className="h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                const selectedTasks = allTasks.filter(t => selectedTaskIds.includes(t.id));
+                exportAugmentedTasksToCsv(selectedTasks, users, "Selected_Scope");
+              }}
+              className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold rounded-lg hover:bg-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <DownloadIcon className="w-3 h-3" />
+              <span>Export Selected CSV</span>
+            </button>
+            <button 
+              onClick={() => {
+                const selectedTasks = allTasks.filter(t => selectedTaskIds.includes(t.id));
+                exportTasksToPdf(selectedTasks, "Selected_Scope");
+              }}
+              className="px-3 py-1.5 bg-gray-800 text-white border border-gray-700 text-[10px] font-bold rounded-lg hover:bg-gray-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <DownloadIcon className="w-3 h-3" />
+              <span>Export Selected PDF</span>
+            </button>
+            <button 
+              onClick={() => setSelectedTaskIds([])}
+              className="px-3 py-1.5 bg-transparent text-gray-400 hover:text-white text-[10px] font-semibold rounded-lg transition-all"
+            >
+              Clear Selected
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+
+      <RightControlDeck
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        assignees={Object.values(users || {})}
+        sprints={allSprints}
+        statuses={allStatuses}
+        tags={allTags}
+        priorityFilter={priorityFilter}
+        setPriorityFilter={setPriorityFilter}
+        assigneeFilter={assigneeFilter}
+        setAssigneeFilter={setAssigneeFilter}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        tagFilter={tagFilter}
+        setTagFilter={setTagFilter}
+        startDate={startDate}
+        setStartDate={setStartDate}
+        endDate={endDate}
+        setEndDate={setEndDate}
+        onClearFilters={handleClearFilters}
+        onExportCsv={handleExport}
+        onExportPdf={handleExportPdf}
+        filteredCount={filteredTasks.length}
+        totalCount={allTasks.length}
+      />
     </div>
   );
 };
