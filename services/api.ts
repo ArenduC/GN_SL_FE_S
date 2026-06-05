@@ -147,29 +147,113 @@ const signOut = async () => {
         console.warn("API logout call failed, cleaning up local state", err.message || err);
     } finally {
         localStorage.removeItem('auth_token');
+        delete client.defaults.headers.common['Authorization'];
         triggerAuthChange('SIGNED_OUT', null);
     }
     return { error: null };
 };
 
+const isValidToken = (value: any): boolean => {
+    if (typeof value !== 'string') return false;
+    const clean = value.trim().toLowerCase();
+    if (!clean || clean === 'undefined' || clean === 'null') return false;
+    return value.trim().length > 15;
+};
+
+const decodeGoogleCredential = (jwt: string) => {
+    try {
+        const base64Url = jwt.split('.')[1];
+        if (!base64Url) return null;
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent((window.atob || atob)(base64).split('').map((c) => {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error("Failed to decode google credential:", e);
+        return null;
+    }
+};
+
+const extractTokenAndUser = (resData: any) => {
+    let token: string | null = null;
+    let userRaw: any = null;
+
+    const search = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return;
+
+        // Common token key mappings
+        const tokenKeys = ['token', 'access_token', 'accessToken', 'jwt', 'id_token', 'idToken', 'credential'];
+        for (const key of tokenKeys) {
+            if (isValidToken(obj[key])) {
+                token = obj[key];
+                break;
+            }
+        }
+
+        // Common user mappings
+        if (obj.user && typeof obj.user === 'object') {
+            userRaw = obj.user;
+        }
+
+        // If we didn't find token/user here, recurse in nested objects
+        for (const key in obj) {
+            if (obj[key] && typeof obj[key] === 'object' && key !== 'user') {
+                if (!token || !userRaw) {
+                    search(obj[key]);
+                }
+            }
+        }
+    };
+
+    search(resData);
+
+    // If still no token found, look for any valid token string of the object keys
+    if (!token) {
+        const findAnyToken = (obj: any) => {
+            if (!obj || typeof obj !== 'object') return;
+            for (const key in obj) {
+                if (isValidToken(obj[key])) {
+                    token = obj[key];
+                    return;
+                }
+                if (obj[key] && typeof obj[key] === 'object') {
+                    findAnyToken(obj[key]);
+                }
+            }
+        };
+        findAnyToken(resData);
+    }
+
+    if (!userRaw) {
+        userRaw = resData.data?.user || resData.session?.user || resData.data || resData;
+    }
+
+    return { token, userRaw };
+};
+
 const signInWithPassword = async ({ email, password }: { email: string, password: string }) => {
     try {
         const response = await client.post(ENDPOINTS.AUTH.login, { email, password });
-        const { token, user } = response.data;
+        const resData = response.data || {};
+        const { token, userRaw } = extractTokenAndUser(resData);
         
-        if (token) {
-            localStorage.setItem('auth_token', token);
+        if (!token) {
+            throw new Error("No authentication token was returned from the server response.");
         }
         
+        localStorage.setItem('auth_token', token);
+        client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
         const mappedUser = {
-            id: user.id,
-            email: user.email,
-            user_metadata: { name: user.name || '' },
-            app_metadata: { recovery: !!user.is_recovering }
+            id: userRaw?.id || userRaw?.userId || userRaw?.user_id || '',
+            email: userRaw?.email || email,
+            user_metadata: { name: userRaw?.name || userRaw?.user_metadata?.name || '' },
+            app_metadata: { recovery: !!(userRaw?.is_recovering || userRaw?.app_metadata?.recovery) }
         };
         
         const session: Session = {
-            access_token: token || '',
+            access_token: token,
             refresh_token: '',
             expires_in: 3600,
             token_type: 'bearer',
@@ -188,21 +272,30 @@ const signInWithPassword = async ({ email, password }: { email: string, password
 const signInWithGoogle = async ({ credential }: { credential: string }) => {
     try {
         const response = await client.post(ENDPOINTS.AUTH.google, { credential });
-        const { token, user } = response.data;
+        const resData = response.data || {};
+        const { token, userRaw } = extractTokenAndUser(resData);
         
-        if (token) {
-            localStorage.setItem('auth_token', token);
+        if (!token) {
+            throw new Error("Authentication token missing from Google login response.");
         }
         
+        localStorage.setItem('auth_token', token);
+        client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        const decoded = decodeGoogleCredential(credential);
+        const fallbackEmail = decoded?.email || '';
+        const fallbackName = decoded?.name || decoded?.given_name || '';
+        const fallbackId = decoded?.sub || '';
+
         const mappedUser = {
-            id: user.id,
-            email: user.email,
-            user_metadata: { name: user.name || '' },
-            app_metadata: { recovery: !!user.is_recovering }
+            id: userRaw?.id || userRaw?.userId || userRaw?.user_id || fallbackId,
+            email: userRaw?.email || fallbackEmail,
+            user_metadata: { name: userRaw?.name || userRaw?.user_metadata?.name || fallbackName },
+            app_metadata: { recovery: !!(userRaw?.is_recovering || userRaw?.app_metadata?.recovery || decoded?.is_recovering) }
         };
         
         const session: Session = {
-            access_token: token || '',
+            access_token: token,
             refresh_token: '',
             expires_in: 3600,
             token_type: 'bearer',

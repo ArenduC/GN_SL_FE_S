@@ -5,7 +5,7 @@ let currentProjectId: string | null = null;
 let currentToken: string | null = null;
 
 export const getSocketUrl = (): string => {
-    return 'https://contains-replacement-class-message.trycloudflare.com';
+    return 'https://zip-unexpected-antique-curriculum.trycloudflare.com';
 };
 
 export const getSocket = (): Socket | null => {

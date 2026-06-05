@@ -6,8 +6,18 @@ export const setupInterceptors = (axiosInstance: AxiosInstance): AxiosInstance =
         (config: InternalAxiosRequestConfig) => {
             // Include authorization token if stored
             const token = localStorage.getItem('auth_token');
-            if (token && config.headers) {
-                config.headers.Authorization = `Bearer ${token}`;
+            const isValidToken = token && token !== 'undefined' && token !== 'null' && token.trim().length > 0;
+            if (isValidToken && config.headers) {
+                const bearerToken = `Bearer ${token}`;
+                config.headers.Authorization = bearerToken;
+                config.headers['Authorization'] = bearerToken;
+                config.headers['authorization'] = bearerToken;
+                
+                // For modern Axios (AxiosHeaders class)
+                if (typeof config.headers.set === 'function') {
+                    config.headers.set('Authorization', bearerToken);
+                    config.headers.set('authorization', bearerToken);
+                }
             }
 
             // Automatically append ngrok-skip-browser-warning bypass to both headers and query params
