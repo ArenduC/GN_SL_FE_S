@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { KanbanBoard } from './components/KanbanBoard';
 import { TasksPage } from './pages/TasksPage';
 import { ResourceManagementPage } from './pages/ResourceManagementPage';
+import { ResourceMeshPage } from './pages/ResourceMeshPage';
 import { SettingsModal } from './components/SettingsModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { CreateTaskModal } from './components/CreateTaskModal';
@@ -49,7 +50,7 @@ export const useConfirmation = () => {
   return context.confirm;
 };
 
-type View = 'dashboard' | 'tasks' | 'resources' | 'project' | 'create-task' | 'task-details';
+type View = 'dashboard' | 'tasks' | 'resources' | 'resource-mesh' | 'project' | 'create-task' | 'task-details';
 
 interface AppProps {
   view?: View;
@@ -68,7 +69,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   const setSession = (sess: Session | null) => dispatch(setReduxSession(sess));
   const setCurrentUser = (user: User | null) => dispatch(setReduxUser(user));
 
-  const activeProjectId = (view === 'project' || view === 'create-task' || view === 'task-details') ? projectId || null : null;
+  const activeProjectId = (view === 'project' || view === 'create-task' || view === 'task-details' || view === 'resource-mesh') ? projectId || null : null;
   const currentView = (view === 'project' || view === 'create-task' || view === 'task-details') ? 'dashboard' : view;
   const [onlineUsers, setOnlineUsersLocal] = useState<Set<string>>(new Set());
 
@@ -104,13 +105,13 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
     const defaultProjId = localStorage.getItem('user_project_default_project');
     if (defaultProjId && state.projects && Object.keys(state.projects).length > 0) {
       const currentPath = window.location.pathname;
-      if (!activeProjectId && (currentPath === '/' || currentPath.includes('/dashboard'))) {
+      if (!activeProjectId && currentPath === '/') {
         if (state.projects[defaultProjId]) {
           handleSelectProject(defaultProjId);
         }
       }
     }
-  }, [state.projects, activeProjectId]);
+  }, [state.projects, activeProjectId, prefCounter]);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -129,6 +130,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
 
   // SaaS Navigation States
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isControlDeckOpen, setIsControlDeckOpen] = useState(true);
   const [projectView, setProjectView] = useState<'board' | 'table' | 'graph' | 'sprints'>(() => {
     return (localStorage.getItem('user_project_default_view') || 'board') as 'board' | 'table' | 'graph' | 'sprints';
   });
@@ -136,7 +138,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   useEffect(() => {
     const preferredView = (localStorage.getItem('user_project_default_view') || 'board') as 'board' | 'table' | 'graph' | 'sprints';
     setProjectView(preferredView);
-  }, [prefCounter]);
+  }, [prefCounter, activeProjectId]);
   const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
   const [isBillingOpen, setIsBillingOpen] = useState(false);
@@ -312,6 +314,9 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
 
   const project = activeProjectId ? state.projects[activeProjectId] : null;
 
+  const isRightSidebarActive = !!(activeProjectId && project && projectView !== 'sprints');
+  const headerMarginRight = isRightSidebarActive ? (isControlDeckOpen ? '368px' : '48px') : '0px';
+
   const currProjectMembers = useMemo(() => {
     if (!project) return [];
     return (project.members || [])
@@ -344,7 +349,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
       );
   }
 
-  const isRoutingStandalone = view === 'create-task' || view === 'task-details';
+  const isRoutingStandalone = view === 'create-task' || view === 'task-details' || view === 'resource-mesh';
 
   // Quick helper to download current analytics report
   const handleGenerateReport = () => {
@@ -374,7 +379,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
         
         {isRoutingStandalone ? (
           // Standalone page layout for create task and detail view mapping to "hide main header"
-          <main className="flex-grow p-6 overflow-y-auto custom-scrollbar">
+          <main className="flex-grow h-screen flex flex-col overflow-hidden bg-[#0D1112]">
             {view === 'create-task' && project ? (
               <CreateTaskPage 
                 project={project}
@@ -386,6 +391,16 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 onCancel={() => navigate(`/project/${project.id}`)}
                 onAddSprint={(sd) => addSprint(project.id, sd)}
               />
+            ) : view === 'resource-mesh' ? (
+              <ResourceMeshPage 
+                projects={state.projects} 
+                users={state.users} 
+                onlineUsers={onlineUsers} 
+                currentUser={currentUser} 
+                onTaskClick={handleTaskClick} 
+                addProjectLink={addProjectLink} 
+                deleteProjectLink={deleteProjectLink} 
+              />
             ) : (
               selectedTask && taskProject && (
                 <TaskDetailsPage 
@@ -396,6 +411,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                   allProjectTags={taskProjectTags} 
                   sprints={taskProjectSprints} 
                   onlineUsers={onlineUsers} 
+                  projectName={taskProject.name}
                   onClose={() => navigate(`/project/${taskProject.id}`)} 
                   onUpdateTask={(t) => updateTask(taskProject.id, t)} 
                   onUpdateSubtask={(tid, sid, up) => updateSubtask(taskProject.id, tid, sid, up)}
@@ -541,23 +557,57 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 </button>
 
                 {/* Mesh / Resource Navigation */}
-                <button 
-                  onClick={() => {
-                    dispatch(setReduxActiveProjectId(null));
-                    navigate('/resources');
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all ${
-                    currentView === 'resources' 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                  title="Mesh & Reports"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0h.5m-1.5 0h-8.5m.5 0h-.5" />
-                  </svg>
-                  {!isSidebarCollapsed && <span>Mesh & Reports</span>}
-                </button>
+                <div className="space-y-1">
+                  <button 
+                    onClick={() => {
+                      dispatch(setReduxActiveProjectId(null));
+                      navigate('/resources');
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all ${
+                      (currentView === 'resources' || currentView === 'resource-mesh')
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                    title="Mesh & Reports"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0h.5m-1.5 0h-8.5m.5 0h-.5" />
+                    </svg>
+                    {!isSidebarCollapsed && <span>Mesh & Reports</span>}
+                  </button>
+
+                  {/* Sub-navigation for SaaS design */}
+                  {!isSidebarCollapsed && (currentView === 'resources' || currentView === 'resource-mesh') && (
+                    <div className="pl-6 pr-2 py-1 flex flex-col gap-1 ml-[11px]">
+                      <button
+                        onClick={() => {
+                          dispatch(setReduxActiveProjectId(null));
+                          navigate('/resources');
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
+                          currentView === 'resources' 
+                            ? 'text-emerald-400 bg-white/5 font-black' 
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        • Cluster Members
+                      </button>
+                      <button
+                        onClick={() => {
+                          dispatch(setReduxActiveProjectId(null));
+                          navigate('/resources/mesh');
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
+                          currentView === 'resource-mesh' 
+                            ? 'text-emerald-400 bg-white/5 font-black' 
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        • Neural Mesh
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Active Projects Divider Section */}
                 {!isSidebarCollapsed && (
@@ -712,12 +762,15 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             <div className="flex-grow flex flex-col min-w-0 h-full overflow-hidden bg-[#0D1112]">
               
               {/* Top Navigation Bar */}
-              <header className="h-14 border-b border-white/5 bg-[#0E1314]/85 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-35">
-                <div className="flex items-center gap-3">
+              <header 
+                className="h-14 min-h-[56px] max-h-14 flex-shrink-0 overflow-hidden flex-nowrap border-b border-white/5 bg-[#0E1314]/85 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-35 transition-all duration-300 ease-in-out"
+                style={{ marginRight: headerMarginRight }}
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
                   {/* Toggle button on small devices */}
                   <button 
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                    className="p-1.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white md:hidden"
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white md:hidden flex-shrink-0"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -725,42 +778,42 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                   </button>
 
                   {/* Breadcrumb path tracker */}
-                  <div className="flex items-center gap-1.5 text-xs text-gray-400 font-semibold">
-                    <span className="text-gray-500">Enterprise Workspace</span>
-                    <span className="text-gray-700">/</span>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400 font-semibold truncate whitespace-nowrap min-w-0">
+                    <span className="text-gray-500 truncate hidden sm:inline">Enterprise Workspace</span>
+                    <span className="text-gray-700 hidden sm:inline">/</span>
                     <button 
                       onClick={() => { dispatch(setReduxActiveProjectId(null)); navigate('/dashboard'); }} 
-                      className="text-gray-400 hover:text-white transition-all uppercase tracking-wider text-[11px]"
+                      className="text-gray-400 hover:text-white transition-all uppercase tracking-wider text-[11px] truncate flex-shrink-0"
                     >
                       {project ? 'Projects' : 'Global Network'}
                     </button>
                     {project && (
                       <>
                         <span className="text-gray-700">/</span>
-                        <span className="text-white bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 text-[11px] font-bold">{project.name}</span>
+                        <span className="text-white bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 text-[11px] font-bold truncate max-w-[120px]">{project.name}</span>
                       </>
                     )}
                     <span className="text-gray-700">/</span>
-                    <span className="text-gray-400 text-[11px] uppercase tracking-widest">{currentView}</span>
+                    <span className="text-gray-400 text-[11px] uppercase tracking-widest truncate">{currentView}</span>
                   </div>
                 </div>
 
                 {/* Search Bar Shortcut mimicking Linear/Notion command menu */}
-                <div className="hidden md:flex items-center flex-grow max-w-sm justify-center mx-6">
+                <div className="hidden md:flex items-center flex-grow max-w-sm justify-center mx-6 min-w-0">
                   <button 
                     onClick={() => setIsSearchOpen(true)}
-                    className="w-full flex items-center justify-between px-3 py-1.5 bg-white/5 border border-white/5 hover:border-white/10 rounded-xl text-left text-gray-500 hover:bg-white/[0.08] hover:text-gray-300 transition-all text-xs"
+                    className="w-full flex items-center justify-between px-3 py-1.5 bg-white/5 border border-white/5 hover:border-white/10 rounded-xl text-left text-gray-500 hover:bg-white/[0.08] hover:text-gray-300 transition-all text-xs truncate"
                   >
-                    <div className="flex items-center gap-2">
-                      <SearchIcon className="w-3.5 h-3.5 text-gray-500" />
-                      <span>Search Canvas workspace...</span>
+                    <div className="flex items-center gap-2 min-w-0 truncate">
+                      <SearchIcon className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                      <span className="truncate">Search Canvas workspace...</span>
                     </div>
-                    <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded border border-white/10 font-mono">⌘K</span>
+                    <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded border border-white/10 font-mono flex-shrink-0">⌘K</span>
                   </button>
                 </div>
 
                 {/* Right utility alignment */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-shrink-0">
                   
                   {/* Latency feedback pulse */}
                   <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-emerald-500/5 border border-emerald-500/10 text-[10px] text-emerald-400 font-mono tracking-widest">
@@ -884,6 +937,8 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                   <KanbanBoard 
                     project={project} currentUser={currentUser} users={Object.values(state.users || {})} onlineUsers={onlineUsers} aiFeaturesEnabled={featureFlags.ai}
                     projectView={projectView} setProjectView={setProjectView}
+                    isControlDeckOpen={isControlDeckOpen}
+                    setIsControlDeckOpen={setIsControlDeckOpen}
                     onDragEnd={(r, fd) => onDragEnd(project.id, r, fd)} updateTask={(t) => updateTask(project.id, t)} addSubtasks={(tid, sts) => addSubtasks(project.id, tid, sts, currentUser.id)}
                     addComment={(tid, text) => addComment(project.id, tid, text, currentUser)} addAiTask={(p) => addAiTask(project.id, p)}
                     addTask={(td) => addTask(project.id, td, currentUser.id)} deleteTask={(tid, cid) => deleteTask(project.id, tid, cid)}
@@ -927,22 +982,141 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
               background-color: #F3F4F6 !important;
               color: #111827 !important;
             }
-            .bg-\\[\\#0E1314\\], .bg-\\[\\#0D1112\\], .bg-\\[\\#0e1314\\] { background-color: #F3F4F6 !important; }
-            .bg-\\[\\#0B0E0F\\], .bg-\\[\\#0b0e0f\\] { background-color: #FFFFFF !important; border-color: #E5E7EB !important; }
-            .bg-\\[\\#131C1B\\], .bg-\\[\\#131c1b\\] { background-color: #FFFFFF !important; border-color: #E5E7EB !important; }
-            .bg-\\[\\#1C2326\\], .bg-\\[\\#1c2326\\] { background-color: #E5E7EB !important; color: #111827 !important; }
-            .bg-black\\/10, .bg-[#0B0E0F] { background-color: #F9FAFB !important; }
-            .text-white { color: #1F2937 !important; }
-            .text-gray-400 { color: #4B5563 !important; }
-            .text-gray-300 { color: #374151 !important; }
-            .text-gray-500 { color: #6B7280 !important; }
-            .border-white\\/5 { border-color: #E5E7EB !important; }
-            .border-white\\/10 { border-color: #D1D5DB !important; }
-            button, select, input { color: #1F2937 !important; }
-            input::placeholder { color: #9CA3AF !important; }
-            .text-emerald-500 { color: #059669 !important; }
-            .bg-emerald-500\\/10 { background-color: #D1FAE5 !important; color: #065F46 !important; }
-            .hover\\:bg-white\\/5:hover { background-color: #F3F4F6 !important; }
+            /* Universal Background Hex Color Mappings */
+            [class*="bg-[#0E1314]"], [class*="bg-[#0e1314]"], .bg-\\[\\#0E1314\\], .bg-\\[\\#0e1314\\] { background-color: #FFFFFF !important; }
+            [class*="bg-[#0D1112]"], [class*="bg-[#0d1112]"], .bg-\\[\\#0D1112\\], .bg-\\[\\#0d1112\\] { background-color: #F9FAFB !important; }
+            [class*="bg-[#0B0E0F]"], [class*="bg-[#0b0e0f]"], .bg-\\[\\#0B0E0F\\], .bg-\\[\\#0b0e0f\\] { background-color: #FFFFFF !important; border-color: #E2E8F0 !important; }
+            [class*="bg-[#090D0E]"], [class*="bg-[#090d0e]"], .bg-\\[\\#090D0E\\], .bg-\\[\\#090d0e\\] { background-color: #F3F4F6 !important; }
+            [class*="bg-[#131C1B]"], [class*="bg-[#131c1b]"], .bg-\\[\\#131C1B\\], .bg-\\[\\#131c1b\\] { background-color: #F8FAFC !important; border-color: #E2E8F0 !important; }
+            [class*="bg-[#1C2326]"], [class*="bg-[#1c2326]"], .bg-\\[\\#1C2326\\], .bg-\\[\\#1c2326\\] { background-color: #E2E8F0 !important; }
+            [class*="bg-[#0F1517]"], [class*="bg-[#0f1517]"] { background-color: #F1F5F9 !important; }
+            [class*="bg-[#0D1117]"], [class*="bg-[#0d1117]"] { background-color: #F8FAFC !important; }
+            [class*="bg-[#0C1012]"], [class*="bg-[#0c1012]"] { background-color: #FFFFFF !important; }
+            [class*="bg-[#101918]"], [class*="bg-[#101918]"] { background-color: #D1FAE5 !important; }
+            [class*="bg-[#141B1C]"], [class*="bg-[#141b1c]"] { background-color: #F1F5F9 !important; }
+            .bg-black\\/10 { background-color: #F1F5F9 !important; }
+            .bg-[#0B0E0F] { background-color: #FFFFFF !important; }
+
+            /* Gray background elements adjusted for light theme */
+            .bg-gray-800 { background-color: #E2E8F0 !important; color: #1F2937 !important; border-color: #CBD5E1 !important; }
+            .bg-gray-700 { background-color: #F1F5F9 !important; color: #374151 !important; }
+            .hover\\:bg-gray-700:hover { background-color: #E2E8F0 !important; }
+
+            /* Translucent Active/Badge Background Adjustments for light theme */
+            [class*="bg-white/5"], [class*="bg-white\\/5"] { background-color: rgba(0, 0, 0, 0.04) !important; }
+            [class*="bg-white/10"], [class*="bg-white\\/10"] { background-color: rgba(0, 0, 0, 0.08) !important; }
+            [class*="bg-white/15"], [class*="bg-white\\/15"] { background-color: rgba(0, 0, 0, 0.12) !important; }
+            [class*="bg-white/20"], [class*="bg-white\\/20"] { background-color: rgba(0, 0, 0, 0.16) !important; }
+
+            /* Dynamic Hover Background Adjustments */
+            [class*="hover:bg-white/5"]:hover, [class*="hover:bg-white\\/5"]:hover,
+            [class*="group-hover:bg-white/5"]:hover, [class*="group-hover:bg-white\\/5"]:hover { background-color: rgba(0, 0, 0, 0.05) !important; }
+            [class*="hover:bg-white/10"]:hover, [class*="hover:bg-white\\/10"]:hover { background-color: rgba(0, 0, 0, 0.08) !important; }
+
+            /* Text & Font Contrast Overrides */
+            .text-white, [class*="text-slate-100"], [class*="text-slate-50"] { color: #111827 !important; }
+            [class*="text-gray-100"], [class*="text-gray-200"], [class*="text-gray-300"], [class*="text-gray-200"] { color: #1F2937 !important; }
+            [class*="text-slate-200"], [class*="text-slate-300"] { color: #1F2937 !important; }
+            [class*="text-gray-400"], [class*="text-slate-400"] { color: #4B5563 !important; }
+            [class*="text-gray-500"], [class*="text-slate-500"], [class*="text-gray-600"] { color: #6B7280 !important; }
+            [class*="text-emerald-400"] { color: #047857 !important; }
+            [class*="text-sky-400"] { color: #0284C7 !important; }
+            [class*="text-amber-400"] { color: #D97706 !important; }
+            [class*="text-rose-400"] { color: #E11D48 !important; }
+            [class*="text-purple-400"] { color: #7C3AED !important; }
+            [class*="text-cyan-400"] { color: #0891B2 !important; }
+
+            /* Universal Border Overlay Settings */
+            [class*="border-white/"], [class*="border-white\\/"] { border-color: rgba(0, 0, 0, 0.08) !important; }
+            .border-white\\/5 { border-color: rgba(0, 0, 0, 0.06) !important; }
+            .border-white\\/10 { border-color: rgba(0, 0, 0, 0.12) !important; }
+            .border-white\\/20 { border-color: rgba(0, 0, 0, 0.18) !important; }
+            [class*="border-emerald-500/"] { border-color: rgba(4, 120, 87, 0.25) !important; }
+
+            /* Inputs & Direct Visual Modifiers */
+            button, select, select option, input, textarea { color: #1F2937 !important; }
+            input::placeholder, textarea::placeholder { color: #9CA3AF !important; }
+            .text-emerald-500 { color: #047857 !important; }
+            
+            /* Green Badges/Pills and Alerts styling */
+            [class*="bg-emerald-500/10"], [class*="bg-emerald-500\\/10"] { background-color: #D1FAE5 !important; color: #065F46 !important; }
+            [class*="bg-rose-500/10"], [class*="bg-rose-500\\/10"] { background-color: #FFE4E6 !important; color: #9F1239 !important; }
+            [class*="bg-sky-500/10"], [class*="bg-sky-500\\/10"] { background-color: #E0F2FE !important; color: #075985 !important; }
+
+            /* Dropdown lists: Ensure they have white backgrounds, gray boundaries, and dark texts */
+            [class*="bg-[#0E1314]"], [class*="bg-[#0e1314]"] {
+              background-color: #FFFFFF !important;
+              border: 1px solid rgba(0, 0, 0, 0.1) !important;
+              color: #111827 !important;
+            }
+            [class*="bg-[#0E1314]"] p, [class*="bg-[#0e1314]"] p {
+              color: #6B7280 !important;
+              border-color: rgba(0, 0, 0, 0.06) !important;
+            }
+            [class*="bg-[#0E1314]"] button, [class*="bg-[#0e1314]"] button {
+              color: #374151 !important;
+            }
+            [class*="bg-[#0E1314]"] button:hover, [class*="bg-[#0e1314]"] button:hover {
+              background-color: rgba(0, 0, 0, 0.04) !important;
+              color: #111827 !important;
+            }
+            [class*="bg-[#0E1314]"] label, [class*="bg-[#0e1314]"] label {
+              color: #374151 !important;
+            }
+            [class*="bg-[#0E1314]"] label:hover, [class*="bg-[#0e1314]"] label:hover {
+              background-color: rgba(0, 0, 0, 0.04) !important;
+              color: #111827 !important;
+            }
+
+            /* Tooltips overrides: ensure tooltip absolute overlays match light styling rules */
+            [class*="absolute"][class*="bg-black"][class*="text-[9px]"],
+            [class*="absolute"][class*="bg-black"][class*="text-gray-300"] {
+              background-color: #FFFFFF !important;
+              color: #111827 !important;
+              border-color: rgba(0, 0, 0, 0.1) !important;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+            }
+
+            /* Scrollbar Refinement */
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background-color: rgba(0, 0, 0, 0.15) !important;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+              background-color: rgba(0, 0, 0, 0.25) !important;
+            }
+
+            /* Quill Rich Text Editor Light theme Overrides */
+            .rich-text-editor-container {
+              background-color: #FFFFFF !important;
+              border-color: rgba(0, 0, 0, 0.12) !important;
+              color: #111827 !important;
+            }
+            .rich-text-editor-container .ql-toolbar.ql-snow {
+              background-color: #F3F4F6 !important;
+              border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+            }
+            .rich-text-editor-container .ql-editor {
+              color: #111827 !important;
+            }
+            .rich-text-editor-container .ql-editor.ql-blank::before {
+              color: rgba(0, 0, 0, 0.38) !important;
+            }
+            .rich-text-editor-container .ql-snow .ql-stroke {
+              stroke: #4B5563 !important;
+            }
+            .rich-text-editor-container .ql-snow .ql-fill {
+              fill: #4B5563 !important;
+            }
+            .rich-text-editor-container .ql-snow .ql-picker {
+              color: #4B5563 !important;
+            }
+            .rich-text-editor-container .ql-snow .ql-picker-options {
+              background-color: #FFFFFF !important;
+              border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            }
+            .rich-text-editor-container .ql-snow .ql-picker-item {
+              color: #4B5563 !important;
+            }
           `}</style>
         )}
         {activeTheme === 'gray' && (
@@ -979,7 +1153,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
 
         {/* Floating Mock Billing subscription slider panel */}
         {isBillingOpen && (
-          <div className="fixed inset-0 z-100 flex justify-end bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-[100] flex justify-end bg-black/60 backdrop-blur-xs">
             <div className="w-full max-w-md h-full bg-[#0E1314] border-l border-white/5 p-6 flex flex-col justify-between shadow-2xl relative animate-in slide-in-from-right duration-200">
               <div>
                 <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-6">
@@ -1057,7 +1231,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
 
         {/* Interactive Mock Notifications Panel */}
         {isNotificationsOpen && (
-          <div className="fixed inset-0 z-100 flex justify-end bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-[100] flex justify-end bg-black/40 backdrop-blur-xs">
             <div className="w-full max-w-sm h-full bg-[#0E1314] border-l border-white/5 p-6 flex flex-col shadow-2xl relative animate-in slide-in-from-right duration-200">
               <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
                 <div className="flex items-center gap-2">

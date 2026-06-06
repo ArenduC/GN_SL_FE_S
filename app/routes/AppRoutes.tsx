@@ -11,6 +11,9 @@ export const AppRoutes: React.FC = () => {
         <Route path="/dashboard" element={<App view="dashboard" />} />
         <Route path="/tasks" element={<App view="tasks" />} />
         <Route path="/resources" element={<App view="resources" />} />
+        <Route path="/resources/mesh" element={<App view="resource-mesh" />} />
+        {/* Project specific mesh view */}
+        <Route path="/project/:projectId/mesh" element={<App view="resource-mesh" />} />
         {/* Project details direct route */}
         <Route path="/project/:projectId" element={<App view="project" />} />
         {/* Project specific create task page */}

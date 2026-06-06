@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Project, User, Task, TaskPriority } from '../types';
 import { UserAvatar } from '../components/UserAvatar';
 // FIX: Added AppLogo to the imports.
@@ -124,11 +125,11 @@ const Metric: React.FC<{ icon: any, label: string, value: any, color: string }> 
 );
 
 export const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({ projects, users, onlineUsers, onTaskClick }) => {
+    const navigate = useNavigate();
     const [currentPage, setCurrentPage] = useState(1);
     const [viewDate, setViewDate] = useState(new Date());
     const [selectedUser, setSelectedUser] = useState<string | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [isNeuralModalOpen, setIsNeuralModalOpen] = useState(false);
     
     // FIX: Explicitly cast Object.values to Project[] and User[] to ensure property access on known types and resolve compilation errors.
     const pList = Object.values(projects || {}) as Project[], uList = Object.values(users || {}) as User[];
@@ -155,7 +156,7 @@ export const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({ 
             </div>
             <div className="flex items-center gap-2">
                 <button 
-                    onClick={() => setIsNeuralModalOpen(true)}
+                    onClick={() => navigate('/resources/mesh')}
                     className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black rounded-lg hover:bg-emerald-500 hover:text-black transition-all flex items-center gap-2 text-[9px] uppercase tracking-widest shadow-xl shadow-emerald-500/5 group"
                 >
                     <SparklesIcon className="w-4 h-4 group-hover:rotate-12 transition-transform" /> Neural Mesh
@@ -190,30 +191,30 @@ export const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({ 
                                 className="bg-transparent text-[10px] font-black text-white focus:outline-none uppercase tracking-widest w-full placeholder:text-gray-700" 
                             />
                         </div>
-                        <table className="w-full text-left">
+                        <table className="w-full text-left table-auto">
                             <thead className="bg-white/5 text-[9px] uppercase tracking-[0.2em] font-black text-gray-500">
                                 <tr className="border-b border-white/5">
-                                    <th className="px-6 py-3">Resource Cluster</th>
-                                    <th className="px-6 py-3">Neural Load</th>
-                                    <th className="px-6 py-3 text-right">Bitmask</th>
+                                    <th className="px-6 py-3 whitespace-nowrap">Resource Cluster</th>
+                                    <th className="px-6 py-3 whitespace-nowrap">Neural Load</th>
+                                    <th className="px-6 py-3 text-right whitespace-nowrap">Bitmask</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {paginated.map(user => (
                                     <tr key={user.id} className="hover:bg-white/[0.03] transition-all group cursor-default">
-                                        <td className="px-6 py-4 flex items-center gap-3">
-                                            <UserAvatar user={user} className="w-8 h-8 ring-1 ring-white/10 group-hover:scale-110 transition-transform" isOnline={onlineUsers.has(user.id)} />
-                                            <div>
-                                                <p className="font-bold text-[11px] text-white leading-none group-hover:text-emerald-400 transition-colors">{user.name}</p>
-                                                <p className="text-[9px] text-gray-500 uppercase mt-1 tracking-widest font-mono opacity-50">{user.role}</p>
+                                        <td className="px-6 py-4 flex items-center gap-3 whitespace-nowrap truncate max-w-[240px]">
+                                            <UserAvatar user={user} className="w-8 h-8 ring-1 ring-white/10 group-hover:scale-110 transition-transform shrink-0" isOnline={onlineUsers.has(user.id)} />
+                                            <div className="min-w-0 truncate">
+                                                <p className="font-bold text-[11px] text-white leading-none group-hover:text-emerald-400 transition-colors truncate">{user.name}</p>
+                                                <p className="text-[9px] text-gray-500 uppercase mt-1 tracking-widest font-mono opacity-50 truncate">{user.role}</p>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="w-32 bg-white/5 h-1 rounded-full overflow-hidden">
                                                 <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.floor(Math.random() * 60 + 20)}%` }} />
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right text-[10px] font-mono text-gray-600 group-hover:text-emerald-500/50 transition-colors">
+                                        <td className="px-6 py-4 text-right text-[10px] font-mono text-gray-600 group-hover:text-emerald-500/50 transition-colors whitespace-nowrap">
                                             0x{user.id.slice(0, 6).toUpperCase()}
                                         </td>
                                     </tr>
@@ -258,34 +259,7 @@ export const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({ 
             </div>
         </div>
 
-        {/* Neural Mesh Modal */}
-        {isNeuralModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-                <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setIsNeuralModalOpen(false)} />
-                <div className="relative w-full max-w-6xl h-[85vh] bg-[#131C1B] rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col">
-                    <header className="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-500 shadow-lg shadow-emerald-500/5">
-                                <SparklesIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h2 className="text-lg font-black uppercase tracking-[0.3em] text-white leading-none">Neural Resource Mesh</h2>
-                                <p className="text-[10px] font-mono text-emerald-500/70 uppercase tracking-widest mt-1">Topology: Real-time Dynamic Array Synthesis</p>
-                            </div>
-                        </div>
-                        <button onClick={() => setIsNeuralModalOpen(false)} className="p-3 rounded-2xl text-gray-500 hover:text-white hover:bg-white/10 transition-all hover:scale-110 active:scale-95">
-                            <XIcon className="w-8 h-8" />
-                        </button>
-                    </header>
-                    <div className="flex-grow p-4">
-                        <ResourceNeuralGraph projects={projects} users={users} onlineUsers={onlineUsers} onTaskClick={onTaskClick} />
-                    </div>
-                    <footer className="px-8 py-4 border-t border-white/5 bg-white/[0.01] flex justify-center">
-                         <p className="text-[9px] font-mono text-gray-700 uppercase tracking-[0.5em]">Graphynovus Neural Mesh Engine v4.0.2-BETA</p>
-                    </footer>
-                </div>
-            </div>
-        )}
+        {/* Neural Mesh modal has been migrated to the dedicated /resources/mesh route and ResourceMeshPage module */}
     </div>
   );
 };

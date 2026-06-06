@@ -131,26 +131,30 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ columns, users
   };
   
   return createPortal(
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#131C1B] rounded-xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-        <header className="p-4 border-b border-gray-800 flex justify-between items-center">
-          <h2 className="text-lg font-bold text-white">Create New {taskType === 'bug' ? 'Bug' : 'Task'}</h2>
-          <button onClick={onClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-800 transition-colors">
-            <XIcon className="w-6 h-6" />
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-[#0F1517] rounded-xl shadow-2xl w-full max-w-lg border border-white/5 overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <header className="px-5 py-3.5 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-bold tracking-[0.1em] text-emerald-400">Task Injection</span>
+            <span className="text-gray-700">/</span>
+            <h2 className="text-xs font-semibold text-gray-300">Create New {taskType === 'bug' ? 'Bug' : 'Task'}</h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md text-gray-500 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
+            <XIcon className="w-4 h-4" />
           </button>
         </header>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto custom-scrollbar max-h-[80vh]">
           <div>
-            <label className="block text-sm font-medium text-white mb-2">Item Type</label>
+            <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 select-none">Item Type</label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setTaskType('task')}
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg border transition-all ${
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded border transition-all cursor-pointer ${
                   taskType === 'task'
                     ? 'bg-white text-black border-white'
-                    : 'bg-[#1C2326] text-gray-400 border-gray-800 hover:text-white'
+                    : 'bg-[#1C2326] text-gray-400 border-white/5 hover:border-white/10 hover:text-white'
                 }`}
               >
                 Task
@@ -158,10 +162,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ columns, users
               <button
                 type="button"
                 onClick={() => setTaskType('bug')}
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg border transition-all ${
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded border transition-all cursor-pointer ${
                   taskType === 'bug'
-                    ? 'bg-red-500/10 text-red-500 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)] font-black'
-                    : 'bg-[#1C2326] text-gray-400 border-gray-800 hover:text-white'
+                    ? 'bg-red-500/10 text-red-450 border-red-500/25 shadow-[0_0_12px_rgba(239,68,68,0.08)]'
+                    : 'bg-[#1C2326] text-gray-400 border-white/5 hover:border-white/10 hover:text-white'
                 }`}
               >
                 Bug
@@ -170,28 +174,32 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ columns, users
           </div>
 
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-white mb-1">Title</label>
+            <label htmlFor="title" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 select-none">Title</label>
             <input
               type="text"
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-800 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-sm"
-              placeholder="e.g., Implement user authentication"
+              className="w-full px-3 py-2 border border-white/5 hover:border-white/10 focus:border-emerald-500/30 rounded focus:outline-none bg-[#1C2326] text-white text-xs placeholder-gray-500 transition-all font-medium"
+              placeholder="e.g., Integrate real-time subscription pipeline"
             />
           </div>
+
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-white mb-1.5">Description</label>
-            <RichTextEditor
-              value={description}
-              onChange={setDescription}
-              placeholder="Add more details about the task..."
-            />
+            <label htmlFor="description" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 select-none">Description</label>
+            <div className="rounded border border-white/5 bg-[#1C2326] overflow-hidden">
+              <RichTextEditor
+                value={description}
+                onChange={setDescription}
+                placeholder="Describe details, references, or context..."
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="sprint" className="block text-sm font-medium text-white mb-1">Sprint</label>
+              <label htmlFor="sprint" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 select-none">Sprint Iteration</label>
               <select
                 id="sprint"
                 value={sprintId}
@@ -203,7 +211,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ columns, users
                         setShowNewSprintForm(false);
                     }
                 }}
-                className="w-full px-3 py-2 border border-gray-800 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-sm"
+                className="w-full px-2 py-1.5 border border-white/5 focus:outline-none bg-[#1C2326] text-white text-xs rounded cursor-pointer"
               >
                 <option value="">No Sprint</option>
                 {(sprints || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -211,12 +219,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ columns, users
               </select>
             </div>
              <div>
-              <label htmlFor="column" className="block text-sm font-medium text-white mb-1">Column</label>
+              <label htmlFor="column" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 select-none">Workflow Column</label>
               <select
                 id="column"
                 value={columnId}
                 onChange={(e) => setColumnId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-800 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-sm"
+                className="w-full px-2 py-1.5 border border-white/5 focus:outline-none bg-[#1C2326] text-white text-xs rounded cursor-pointer"
               >
                 {columns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
@@ -224,79 +232,81 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ columns, users
           </div>
 
           {showNewSprintForm && (
-            <div className="p-3 bg-gray-800/50 rounded-md">
-                <label htmlFor="new-sprint-name" className="block text-sm font-medium text-white mb-2">New Sprint Name</label>
+            <div className="p-3 bg-white/[0.02] border border-white/5 rounded space-y-2">
+                <label htmlFor="new-sprint-name" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">New Sprint Name</label>
                 <div className="flex items-center gap-2">
                     <input
                         id="new-sprint-name"
                         type="text"
                         value={newSprintName}
                         onChange={(e) => setNewSprintName(e.target.value)}
-                        placeholder="e.g., Q2 Polish"
-                        className="flex-grow px-3 py-2 border border-gray-700 rounded-md bg-[#1C2326] text-white text-sm"
+                        placeholder="e.g., Sprint 8"
+                        className="flex-grow px-2 py-1 border border-white/5 rounded bg-[#1C2326] text-white text-xs focus:outline-none"
                     />
-                    <button type="button" onClick={handleAddSprint} disabled={isCreatingSprint} className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-500 disabled:opacity-50 flex items-center gap-2">
-                        {isCreatingSprint ? <LoaderCircleIcon className="w-5 h-5 animate-spin" /> : <PlusIcon className="w-5 h-5"/>}
+                    <button type="button" onClick={handleAddSprint} disabled={isCreatingSprint || !newSprintName.trim()} className="px-2.5 py-1 bg-white text-black text-[10px] font-bold uppercase rounded hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center gap-1 cursor-pointer">
+                        {isCreatingSprint ? <LoaderCircleIcon className="w-3.5 h-3.5 animate-spin" /> : <PlusIcon className="w-3.5 h-3.5"/>}
+                        <span>Add</span>
                     </button>
-                    <button type="button" onClick={() => setShowNewSprintForm(false)} className="p-2 text-gray-400 hover:text-white"><XIcon className="w-5 h-5"/></button>
+                    <button type="button" onClick={() => setShowNewSprintForm(false)} className="p-1 text-gray-500 hover:text-white cursor-pointer"><XIcon className="w-4 h-4"/></button>
                 </div>
-                <label className="flex items-center gap-2 mt-2 cursor-pointer group">
+                <label className="flex items-center gap-1.5 mt-1 cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={newSprintIsDefault}
                     onChange={(e) => setNewSprintIsDefault(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded bg-gray-800 border-gray-700 text-gray-500 focus:ring-0 focus:ring-offset-0"
+                    className="w-3 h-3 rounded bg-[#1C2326] border-white/5 text-emerald-500 focus:ring-0"
                   />
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-300 transition-colors">Set as Primary Iteration</span>
+                  <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 transition-colors">Set as Primary Iteration</span>
                 </label>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="priority" className="block text-sm font-medium text-white mb-1">Priority</label>
+              <label htmlFor="priority" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 select-none">Priority</label>
               <select
                 id="priority"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full px-3 py-2 border border-gray-800 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-sm"
+                className="w-full px-2 py-1.5 border border-white/5 focus:outline-none bg-[#1C2326] text-white text-xs rounded cursor-pointer uppercase font-mono text-[10px]"
               >
                 {Object.values(TaskPriority).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="assignee" className="block text-sm font-medium text-white mb-1">Assignee</label>
+              <label htmlFor="assignee" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 select-none">Assignee</label>
               <select
                 id="assignee"
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-800 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-sm"
+                className="w-full px-2 py-1.5 border border-white/5 focus:outline-none bg-[#1C2326] text-white text-xs rounded cursor-pointer"
               >
                 <option value="">Unassigned</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
           </div>
-           <div className="grid grid-cols-1">
-            <div>
-              <label htmlFor="dueDate" className="block text-sm font-medium text-white mb-1">Due Date</label>
-              <input
-                type="date"
-                id="dueDate"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-800 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-sm"
-              />
-            </div>
+
+          <div>
+            <label htmlFor="dueDate" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 select-none">Due Date</label>
+            <input
+              type="date"
+              id="dueDate"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full px-2 py-1.5 border border-white/5 focus:outline-none bg-[#1C2326] text-white text-xs rounded cursor-pointer"
+            />
           </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
-           <div className="pt-2 flex justify-end gap-3">
-            <button type="button" onClick={onClose} disabled={isSaving} className="px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-[#131C1B] transition-all text-sm disabled:opacity-50">
+
+          {error && <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">{error}</p>}
+
+          <div className="pt-2 flex justify-end gap-2 border-t border-white/5">
+            <button type="button" onClick={onClose} disabled={isSaving} className="px-3 py-1.5 bg-[#1C2326] border border-white/5 text-gray-400 font-bold uppercase tracking-wider hover:text-white rounded transition-all text-[9.5px] disabled:opacity-50 cursor-pointer">
               Cancel
             </button>
-            <button type="submit" disabled={isSaving} className="px-4 py-2 bg-gray-300 text-black font-semibold rounded-lg shadow-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-[#131C1B] transition-all text-sm disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center gap-2">
-              {isSaving && <LoaderCircleIcon className="w-5 h-5 animate-spin"/>}
-              {isSaving ? 'Creating...' : 'Create Task'}
+            <button type="submit" disabled={isSaving || !title.trim()} className="px-3 py-1.5 bg-white text-black font-bold uppercase tracking-wider rounded shadow-md hover:bg-gray-200 transition-all text-[9.5px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1 cursor-pointer">
+              {isSaving && <LoaderCircleIcon className="w-3.5 h-3.5 animate-spin"/>}
+              <span>{isSaving ? 'Creating...' : 'Create Item'}</span>
             </button>
           </div>
         </form>

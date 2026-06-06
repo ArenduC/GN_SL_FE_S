@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChatMessage, User, Project } from '../types';
 import { XIcon, SendIcon, CopyIcon, CheckIcon, MessageSquareIcon } from './Icons';
@@ -26,7 +25,11 @@ const formatDateSeparator = (dateString: string) => {
     } else if (date.toDateString() === yesterday.toDateString()) {
         return "Yesterday";
     } else {
-        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+        return date.toLocaleDateString(undefined, { 
+            month: 'short', 
+            day: 'numeric', 
+            year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined 
+        });
     }
 };
 
@@ -50,11 +53,7 @@ const ChatBubble: React.FC<{
     isOnline: boolean;
     users: User[];
 }> = ({ message, isCurrentUser, isOnline, users }) => {
-    const alignment = isCurrentUser ? 'items-end' : 'items-start';
     const isJson = isJsonContent(message.text);
-    // Remove bubble background/padding for JSON to allow code block to take full width/style
-    const bubbleStyle = isJson ? 'w-full max-w-2xl' : `px-4 py-2 rounded-2xl shadow-sm ${isCurrentUser ? 'bg-gray-300 text-black' : 'bg-gray-800 text-white'}`;
-    
     const [copied, setCopied] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
 
@@ -62,7 +61,7 @@ const ChatBubble: React.FC<{
         e.stopPropagation();
         navigator.clipboard.writeText(message.text);
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setTimeout(() => setCopied(false), 2500);
     };
 
     const lines = message.text.split('\n');
@@ -102,11 +101,11 @@ const ChatBubble: React.FC<{
 
             if (matchedText.startsWith('http')) {
                 elements.push(
-                    <a key={offset} href={matchedText} target="_blank" rel="noopener noreferrer" className={`hover:underline ${isCurrentUser ? 'text-blue-600' : 'text-blue-400'}`} onClick={(e) => e.stopPropagation()}>{matchedText}</a>
+                    <a key={offset} href={matchedText} target="_blank" rel="noopener noreferrer" className="hover:underline text-sky-400 font-medium" onClick={(e) => e.stopPropagation()}>{matchedText}</a>
                 );
             } else if (matchedText.startsWith('@')) {
                 const userName = matchedText.substring(1);
-                elements.push(<strong key={offset} className={`font-semibold rounded px-1 py-0.5 ${isCurrentUser ? 'bg-blue-200 text-blue-800' : 'bg-blue-900/50 text-blue-300'}`}>@{userName}</strong>);
+                elements.push(<strong key={offset} className="font-semibold rounded px-1.5 py-0.5 bg-sky-505/10 text-sky-400 text-[10px] border border-sky-500/10 whitespace-nowrap">@{userName}</strong>);
             }
             lastIndex = offset + matchedText.length;
         }
@@ -115,27 +114,34 @@ const ChatBubble: React.FC<{
     };
 
     return (
-        <div className={`flex flex-col ${alignment} mb-2 group relative w-full`}>
-            <div className={`flex items-end gap-2 max-w-[85%] sm:max-w-[75%] relative ${isJson ? 'w-full' : ''}`}>
-                {!isCurrentUser && (
-                    <UserAvatar user={message.author} className="w-7 h-7 flex-shrink-0 text-xs" isOnline={isOnline} />
-                )}
-                
-                {/* Standard Copy Action for non-JSON text bubbles (JSON highlighter has its own) */}
-                {!isJson && (
-                    <div className={`absolute top-0 ${isCurrentUser ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'} h-full flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10`}>
-                        <button onClick={handleCopy} className="p-1.5 rounded-full bg-[#1C2326] border border-gray-700 text-gray-400 hover:text-white" title="Copy Text">
-                            {copied ? <CheckIcon className="w-3 h-3 text-green-500" /> : <CopyIcon className="w-3 h-3" />}
-                        </button>
-                    </div>
-                )}
+        <div className="group flex items-start gap-3.5 py-3.5 px-4 sm:px-6 hover:bg-white/[0.015] border-b border-white/[0.03] transition-colors relative w-full text-left">
+            <UserAvatar user={message.author} className="w-8 h-8 rounded-lg flex-shrink-0 text-xs text-white" isOnline={isOnline} />
+            
+            <div className="flex-grow min-w-0">
+                {/* Header Row */}
+                <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-white truncate">
+                        {message.author?.name || 'Collaborator'}
+                    </span>
+                    {isCurrentUser && (
+                        <span className="text-[8px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 px-1 py-0.5 rounded-md shrink-0">
+                            You
+                        </span>
+                    )}
+                    <span className="text-[10px] text-gray-500 font-mono">
+                        {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                </div>
 
-                <div className={`${bubbleStyle} overflow-hidden`}>
+                {/* Message Text Block */}
+                <div className="mt-1 text-xs text-gray-300 leading-relaxed max-w-full overflow-hidden">
                     {isJson ? (
-                        <JsonSyntaxHighlighter data={message.text} />
+                        <div className="mt-1.5">
+                            <JsonSyntaxHighlighter data={message.text} />
+                        </div>
                     ) : (
                         <div>
-                            <p className="text-xs whitespace-pre-wrap leading-relaxed">
+                            <p className="whitespace-pre-wrap break-words">
                                 {renderTextWithTags(
                                     isExpanded || !hasMoreThan15Lines
                                         ? message.text
@@ -145,11 +151,8 @@ const ChatBubble: React.FC<{
                             {hasMoreThan15Lines && (
                                 <button
                                     onClick={() => setIsExpanded(!isExpanded)}
-                                    className={`mt-1.5 text-[10px] font-black uppercase tracking-wider block transition-colors hover:underline cursor-pointer ${
-                                        isCurrentUser 
-                                            ? 'text-emerald-700 hover:text-emerald-900' 
-                                            : 'text-emerald-400 hover:text-emerald-300'
-                                    }`}
+                                    className="mt-1 text-[10px] font-black uppercase tracking-wider block text-emerald-400 hover:text-emerald-300 transition-colors hover:underline cursor-pointer"
+                                    type="button"
                                 >
                                     {isExpanded ? 'Show Less' : 'Read More'}
                                 </button>
@@ -158,26 +161,49 @@ const ChatBubble: React.FC<{
                     )}
                 </div>
             </div>
-             <div className={`flex gap-2 items-center text-[10px] text-gray-500 mt-1 ${isCurrentUser ? 'mr-1' : 'ml-9'}`}>
-                <span>{(message.author?.name || 'Collaborator').split(' ')[0]}</span>
-                <span>·</span>
-                <span>{message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-             </div>
+
+            {/* Hover Floating Copy Option */}
+            {!isJson && (
+                <div className="absolute right-4 top-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-[#0D1112] border border-white/10 rounded-lg p-0.5 shadow-xl z-20">
+                    <button 
+                        onClick={handleCopy} 
+                        className="p-1.5 rounded hover:bg-white/5 text-gray-400 hover:text-white transition-colors cursor-pointer" 
+                        title="Copy text"
+                        type="button"
+                    >
+                        {copied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-405" /> : <CopyIcon className="w-3.5 h-3.5" />}
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
 
-
-export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messages, currentUser, onlineUsers, onClose, onSendMessage }) => {
+export const ProjectChat: React.FC<ProjectChatProps> = ({ 
+    project, 
+    users, 
+    messages, 
+    currentUser, 
+    onlineUsers, 
+    onClose, 
+    onSendMessage 
+}) => {
     const [newMessage, setNewMessage] = useState('');
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     
-    const [suggestionState, setSuggestionState] = useState<{ show: boolean; type: 'user' | null; query: string }>({ show: false, type: null, query: '' });
+    const [suggestionState, setSuggestionState] = useState<{ show: boolean; type: 'user' | null; query: string }>({ 
+        show: false, 
+        type: null, 
+        query: '' 
+    });
     const [activeIndex, setActiveIndex] = useState(0);
 
-    const projectMembers = useMemo(() => project.members.map(id => users.find(u => u.id === id)).filter((u): u is User => !!u), [project.members, users]);
+    const projectMembers = useMemo(() => 
+        project.members.map(id => users.find(u => u.id === id)).filter((u): u is User => !!u), 
+        [project.members, users]
+    );
 
     const filteredSuggestions = useMemo(() => {
         if (!suggestionState.show || !suggestionState.query) return [];
@@ -186,9 +212,10 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
         return [];
     }, [suggestionState, projectMembers]);
 
-    useEffect(() => { setActiveIndex(0); }, [filteredSuggestions]);
+    useEffect(() => { 
+        setActiveIndex(0); 
+    }, [filteredSuggestions]);
     
-    // Improved scroll logic
     const scrollToBottom = (smooth = true) => {
         if (messagesEndRef.current) {
             messagesEndRef.current.scrollIntoView({ 
@@ -198,14 +225,13 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
         }
     };
 
-    // Scroll on mount (instant)
+    // Instant scroll on initial load
     useEffect(() => {
-        // Use a small delay to ensure initial height is calculated after render
         const timer = setTimeout(() => scrollToBottom(false), 50);
         return () => clearTimeout(timer);
     }, []);
 
-    // Scroll when messages change
+    // Smooth scroll when messages arrive
     useEffect(() => {
         scrollToBottom(true);
     }, [messages]);
@@ -247,10 +273,19 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (suggestionState.show && filteredSuggestions.length > 0) {
-            if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex((prev) => (prev + 1) % filteredSuggestions.length); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIndex((prev) => (prev - 1 + filteredSuggestions.length) % filteredSuggestions.length); }
-            else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); handleSuggestionSelect(filteredSuggestions[activeIndex]); }
-            else if (e.key === 'Escape') { e.preventDefault(); setSuggestionState({ show: false, type: null, query: '' }); }
+            if (e.key === 'ArrowDown') { 
+                e.preventDefault(); 
+                setActiveIndex((prev) => (prev + 1) % filteredSuggestions.length); 
+            } else if (e.key === 'ArrowUp') { 
+                e.preventDefault(); 
+                setActiveIndex((prev) => (prev - 1 + filteredSuggestions.length) % filteredSuggestions.length); 
+            } else if (e.key === 'Enter' || e.key === 'Tab') { 
+                e.preventDefault(); 
+                handleSuggestionSelect(filteredSuggestions[activeIndex]); 
+            } else if (e.key === 'Escape') { 
+                e.preventDefault(); 
+                setSuggestionState({ show: false, type: null, query: '' }); 
+            }
         } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSubmit();
@@ -261,86 +296,138 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({ project, users, messag
         if (newMessage.trim()) {
             await onSendMessage(newMessage.trim());
             setNewMessage('');
+            if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+            }
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-[#131C1B] z-[100] flex flex-col transform transition-transform duration-300 ease-in-out">
-             <header className="p-6 border-b border-white/5 flex justify-between items-center flex-shrink-0 bg-[#131C1B]/95 backdrop-blur max-w-5xl mx-auto w-full">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
-                        <MessageSquareIcon className="w-6 h-6" />
+        <div className="fixed inset-0 bg-[#0D1112]/98 backdrop-blur-md z-[100] flex justify-center">
+            {/* Minimal SaaS contained center column container */}
+            <div className="w-full max-w-4xl h-full bg-[#0E1314] md:border-x border-white/5 flex flex-col shadow-2xl overflow-hidden relative">
+                
+                {/* Header matching minimal clean SaaS designs */}
+                <header className="h-16 flex-shrink-0 border-b border-white/5 bg-[#0E1314]/80 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-30">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
+                            <MessageSquareIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Project Pipeline Chat</h3>
+                            <p className="text-[10px] text-gray-500 font-medium">
+                                Connected to <span className="text-gray-300 font-bold">{project.name}</span> context
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Neural Chat Interface</h3>
-                        <p className="text-[9px] font-mono text-blue-500/70 uppercase tracking-widest mt-0.5">Secure Pipeline Active</p>
-                    </div>
-                </div>
-                <button onClick={onClose} className="p-3 rounded-xl text-gray-500 hover:text-white hover:bg-white/5 transition-all">
-                    <XIcon className="w-8 h-8" />
-                </button>
-            </header>
-            <div ref={scrollContainerRef} className="flex-grow p-6 overflow-y-auto custom-scrollbar max-w-5xl mx-auto w-full">
-                {messages.map((msg, index) => {
-                    const currentDate = new Date(msg.createdAt).toDateString();
-                    const prevDate = index > 0 ? new Date(messages[index - 1].createdAt).toDateString() : null;
-                    const showDate = currentDate !== prevDate;
-
-                    return (
-                        <React.Fragment key={msg.id}>
-                            {showDate && (
-                                <div className="flex justify-center my-6 sticky top-0 z-10">
-                                    <span className="bg-[#1C2326]/80 backdrop-blur-md border border-gray-800 text-gray-400 text-[10px] px-3 py-1 rounded-full font-medium shadow-sm">
-                                        {formatDateSeparator(msg.createdAt)}
-                                    </span>
-                                </div>
-                            )}
-                            <ChatBubble 
-                                message={msg} 
-                                isCurrentUser={msg.author.id === currentUser.id} 
-                                isOnline={onlineUsers.has(msg.author.id)}
-                                users={projectMembers}
-                            />
-                        </React.Fragment>
-                    );
-                })}
-                <div ref={messagesEndRef} className="h-px w-full" />
-            </div>
-            <footer className="p-6 border-t border-white/5 flex-shrink-0 relative bg-[#131C1B] max-w-5xl mx-auto w-full">
-                {suggestionState.show && filteredSuggestions.length > 0 && (
-                    <div className="absolute bottom-full mb-2 w-[calc(100%-2rem)] bg-[#1C2326] border border-gray-700 rounded-md shadow-lg max-h-48 overflow-y-auto custom-scrollbar z-10">
-                        <ul>
-                            {filteredSuggestions.map((item, index) => (
-                                <li key={item.id} onClick={() => handleSuggestionSelect(item)} onMouseEnter={() => setActiveIndex(index)}
-                                    className={`px-3 py-2 cursor-pointer flex items-center gap-2 text-xs ${index === activeIndex ? 'bg-gray-700' : 'hover:bg-gray-800/50'}`}>
-                                    <UserAvatar user={item} className="w-6 h-6 flex-shrink-0" />
-                                    <span className="text-white truncate">{item.name}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-                <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="flex items-center gap-2">
-                     <textarea
-                        ref={textareaRef}
-                        value={newMessage}
-                        onChange={handleNewMessageChange}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Message... (@mention)"
-                        className="chat-textarea w-full px-4 py-2 border border-gray-800 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 bg-[#1C2326] text-xs text-white resize-none"
-                        rows={1}
-                        style={{ height: 'auto', maxHeight: '120px' }}
-                        onInput={(e) => {
-                            const target = e.target as HTMLTextAreaElement;
-                            target.style.height = 'auto';
-                            target.style.height = `${target.scrollHeight}px`;
-                        }}
-                    />
-                    <button type="submit" className="p-2.5 bg-gray-300 text-black rounded-full hover:bg-gray-400 disabled:bg-gray-500 flex-shrink-0" disabled={!newMessage.trim()} aria-label="Send message">
-                        <SendIcon className="w-5 h-5"/>
+                    
+                    <button 
+                        onClick={onClose} 
+                        className="p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+                        title="Close Chat"
+                        type="button"
+                    >
+                        <XIcon className="w-4 h-4" />
                     </button>
-                </form>
-            </footer>
+                </header>
+
+                {/* Message display listing viewport */}
+                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto custom-scrollbar flex flex-col pt-2 pb-6">
+                    {messages.length === 0 ? (
+                        <div className="flex-grow flex flex-col items-center justify-center py-20 px-6 text-center">
+                            <div className="w-10 h-10 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-gray-500 mb-4">
+                                <MessageSquareIcon className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-xs font-bold text-gray-350 uppercase tracking-widest">No Context Signals</h4>
+                            <p className="text-[11px] text-gray-500 max-w-sm mt-1 leading-relaxed">
+                                Share design blueprints, JSON updates, file codes, or mention members to stream information.
+                            </p>
+                        </div>
+                    ) : (
+                        messages.map((msg, index) => {
+                            const currentDate = new Date(msg.createdAt).toDateString();
+                            const prevDate = index > 0 ? new Date(messages[index - 1].createdAt).toDateString() : null;
+                            const showDate = currentDate !== prevDate;
+
+                            return (
+                                <React.Fragment key={msg.id}>
+                                    {showDate && (
+                                        <div className="flex justify-center my-6 sticky top-2 z-10 pointer-events-none">
+                                            <span className="bg-[#141B1C]/90 backdrop-blur-md border border-white/5 text-gray-400 text-[9px] px-3 py-1 rounded-full font-black tracking-widest uppercase shadow-md">
+                                                {formatDateSeparator(msg.createdAt)}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <ChatBubble 
+                                        message={msg} 
+                                        isCurrentUser={msg.author.id === currentUser.id} 
+                                        isOnline={onlineUsers.has(msg.author.id)}
+                                        users={projectMembers}
+                                    />
+                                </React.Fragment>
+                            );
+                        })
+                    )}
+                    <div ref={messagesEndRef} className="h-px w-full shrink-0" />
+                </div>
+
+                {/* Footer Message Input Section */}
+                <footer className="p-4 sm:p-6 border-t border-white/5 bg-[#0E1314] flex-shrink-0 relative">
+                    {suggestionState.show && filteredSuggestions.length > 0 && (
+                        <div className="absolute bottom-full left-4 sm:left-6 right-4 sm:right-6 mb-2 bg-[#141B1C] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar z-50 overflow-hidden">
+                            <ul>
+                                {filteredSuggestions.map((item, index) => (
+                                    <li 
+                                        key={item.id} 
+                                        onClick={() => handleSuggestionSelect(item)} 
+                                        onMouseEnter={() => setActiveIndex(index)}
+                                        className={`px-3.5 py-2.5 cursor-pointer flex items-center justify-between transition-colors ${
+                                            index === activeIndex ? 'bg-white/5 text-sky-400' : 'text-gray-300'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <UserAvatar user={item} className="w-5 h-5 flex-shrink-0 text-[10px]" />
+                                            <span className="text-xs truncate font-bold">{item.name}</span>
+                                        </div>
+                                        <span className="text-[10px] text-gray-500 font-mono">@{item.name.toLowerCase().replace(/\s+/g, '')}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    <form 
+                        onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
+                        className="flex items-end gap-2.5 bg-[#0D1112] border border-white/10 rounded-2xl p-2 focus-within:border-sky-500/40 transition-colors"
+                    >
+                        <textarea
+                            ref={textareaRef}
+                            value={newMessage}
+                            onChange={handleNewMessageChange}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Message team, paste JSON, write details..."
+                            className="w-full bg-transparent px-3 text-xs text-white placeholder-gray-500 focus:outline-none resize-none py-1.5 custom-scrollbar"
+                            rows={1}
+                            style={{ height: 'auto', maxHeight: '120px' }}
+                            onInput={(e) => {
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = `${target.scrollHeight}px`;
+                            }}
+                        />
+
+                        <button 
+                            type="submit" 
+                            disabled={!newMessage.trim()}
+                            className="p-2.5 bg-white disabled:bg-white/10 hover:bg-gray-200 text-black disabled:text-gray-600 rounded-xl transition-all flex-shrink-0 flex items-center justify-center cursor-pointer"
+                            aria-label="Send message"
+                        >
+                            <SendIcon className="w-4 h-4"/>
+                        </button>
+                    </form>
+                </footer>
+
+            </div>
         </div>
     );
 };

@@ -15,7 +15,6 @@ import { AiTaskCreator } from './AiTaskCreator';
 import { TaskGraphView } from './TaskGraphView';
 import { ProjectLinksManager } from './ProjectLinksManager';
 import { TaskTableView } from './TaskTableView';
-import { ResourceMeshModal } from './ResourceMeshModal';
 import { Pagination } from './Pagination';
 import { TaskImportDropzone } from './TaskImportDropzone';
 import { generateTasksFromFile } from '../services/geminiService';
@@ -65,6 +64,8 @@ interface KanbanBoardProps {
   updateFilterSegment: (segmentId: string, updates: { name?: string, filters?: FilterSegment['filters'] }) => Promise<void>;
   deleteFilterSegment: (segmentId: string) => Promise<void>;
   duplicateTask?: (taskId: string) => Promise<void>;
+  isControlDeckOpen?: boolean;
+  setIsControlDeckOpen?: (val: boolean) => void;
 }
 
 const AddColumn: React.FC<{onAddColumn: (title: string) => void}> = ({ onAddColumn }) => {
@@ -200,7 +201,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     deleteColumn, isChatOpen, onCloseChat, chatMessages, onSendMessage, onTaskClick, 
     addProjectLink, deleteProjectLink,
     addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint,
-    addFilterSegment, updateFilterSegment, deleteFilterSegment, duplicateTask
+    addFilterSegment, updateFilterSegment, deleteFilterSegment, duplicateTask,
+    isControlDeckOpen: externalControlDeckOpen,
+    setIsControlDeckOpen: setExternalControlDeckOpen
 }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
@@ -221,8 +224,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const TABLE_ITEMS_PER_PAGE = 15;
 
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>('all');
-  const [isResourceMeshModalOpen, setIsResourceMeshModalOpen] = useState(false);
-  const [isControlDeckOpen, setIsControlDeckOpen] = useState(true);
+  const [internalControlDeckOpen, setInternalControlDeckOpen] = useState(true);
+  
+  const isControlDeckOpen = externalControlDeckOpen !== undefined ? externalControlDeckOpen : internalControlDeckOpen;
+  const setIsControlDeckOpen = setExternalControlDeckOpen || setInternalControlDeckOpen;
   
   const boardData = project.board;
   const requestConfirmation = useConfirmation();
@@ -462,7 +467,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           const segment = (project.filterSegments || []).find(s => s.id === segmentId);
           if (segment) {
             if (segment.name.toUpperCase() === 'NEURAL RESOURCE MESH') {
-              setIsResourceMeshModalOpen(true);
+              navigate(`/project/${project.id}/mesh`);
               return;
             }
             applySegmentFilters(segment)
@@ -821,22 +826,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         />
       )}
 
-      {isResourceMeshModalOpen && (
-        <ResourceMeshModal
-          isOpen={isResourceMeshModalOpen}
-          onClose={() => setIsResourceMeshModalOpen(false)}
-          projects={{ [project.id]: project }}
-          users={users}
-          onlineUsers={onlineUsers}
-          onTaskClick={onTaskClick}
-          onAddTask={() => {
-            setIsResourceMeshModalOpen(false);
-            navigate(`/project/${project.id}/create-task`);
-          }}
-          addProjectLink={addProjectLink}
-          deleteProjectLink={deleteProjectLink}
-        />
-      )}
+
 
       {/* Neural Nexus AI Control Sidebar */}
       {isAiNexusOpen && (
@@ -951,7 +941,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         <RightControlDeck
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
-          assignees={users}
+          assignees={projectMembers}
           sprints={project.sprints || []}
           statuses={uniqueStatuses}
           tags={uniqueTags}
@@ -976,7 +966,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           onToggleIsOpen={setIsControlDeckOpen}
           onNewTaskClick={() => navigate(`/project/${project.id}/create-task`)}
           onAddColumn={addColumn}
-          onResourceMeshClick={() => setIsResourceMeshModalOpen(true)}
+          onResourceMeshClick={() => navigate(`/project/${project.id}/mesh`)}
           linksCount={project.links?.length || 0}
           onNeuralNexusClick={() => setIsAiNexusOpen(true)}
           aiFeaturesEnabled={aiFeaturesEnabled}
@@ -986,6 +976,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             name: col.title,
             taskIds: col.taskIds || []
           }))}
+          filterSegments={project.filterSegments || []}
+          addFilterSegment={addFilterSegment}
+          deleteFilterSegment={deleteFilterSegment}
         />
       )}
     </>

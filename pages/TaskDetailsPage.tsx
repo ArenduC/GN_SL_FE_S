@@ -16,6 +16,7 @@ interface TaskDetailsPageProps {
   allProjectTags: string[];
   sprints: Sprint[];
   onlineUsers: Set<string>;
+  projectName?: string;
   onClose: () => void;
   onUpdateTask: (task: Task) => Promise<void>;
   onUpdateSubtask: (taskId: string, subtaskId: string, updates: Partial<Subtask>) => Promise<void>;
@@ -42,11 +43,12 @@ const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, clas
 
     return (
         <button 
+            type="button"
             onClick={handleCopy} 
-            className={`p-1.5 rounded-md hover:bg-gray-700 transition-colors ${className}`}
+            className={`p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer ${className}`}
             title="Copy to clipboard"
         >
-            {copied ? <CheckIcon className="w-3.5 h-3.5 text-green-500" /> : <CopyIcon className="w-3.5 h-3.5 text-gray-400" />}
+            {copied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <CopyIcon className="w-3.5 h-3.5 text-gray-400" />}
         </button>
     );
 };
@@ -82,7 +84,6 @@ const EditableField: React.FC<{
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const lastSavedValueRef = useRef(value);
 
-  // Sync external changes safely
   useEffect(() => {
     if (!isEditing) {
       setCurrentValue(value);
@@ -106,24 +107,21 @@ const EditableField: React.FC<{
     }
   };
 
-  // Debounced auto-save effect
   useEffect(() => {
     if (autoSave && isEditing && currentValue !== lastSavedValueRef.current) {
       const timer = setTimeout(() => {
         const cleanedValue = isRichText || isTextArea ? currentValue.trim() : currentValue;
         triggerSave(cleanedValue);
-      }, 1200); // 1.2s typing debounce
+      }, 1200);
       return () => clearTimeout(timer);
     }
   }, [currentValue, autoSave, isEditing, isRichText, isTextArea]);
 
-  // When edit is finished (blurred or clicking Save)
   const handleSave = async () => {
     const cleanedValue = isRichText || isTextArea ? currentValue.trim() : currentValue;
     if (cleanedValue !== lastSavedValueRef.current) {
       await triggerSave(cleanedValue);
     }
-    // Call the finished callback when we actually stop editing
     if (onSaveFinished && cleanedValue !== value) {
       onSaveFinished(cleanedValue);
     }
@@ -144,26 +142,25 @@ const EditableField: React.FC<{
   if (isEditing) {
     if (isRichText) {
       return (
-        <div className="space-y-2 mt-1">
+        <div className="space-y-1 mt-1">
           <RichTextEditor value={currentValue} onChange={setCurrentValue} placeholder={placeholder} />
           <div className="flex gap-2 justify-between items-center">
-            {/* Save Status Indicator */}
-            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest pl-1">
+            <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider pl-1">
               {saveStatus === 'saving' && (
-                <span className="text-amber-400 flex items-center gap-1.5 animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Saving changes...
+                <span className="text-amber-400 flex items-center gap-1 animate-pulse">
+                  <span className="w-1 h-1 rounded-full bg-amber-400" />
+                  Saving...
                 </span>
               )}
               {saveStatus === 'saved' && (
-                <span className="text-emerald-400 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-emerald-400 animate-ping" />
                   Saved
                 </span>
               )}
             </div>
 
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-1.5 justify-end">
               <button 
                 type="button"
                 onClick={() => {
@@ -171,16 +168,16 @@ const EditableField: React.FC<{
                   setIsEditing(false);
                   setSaveStatus('idle');
                 }} 
-                className="px-3 py-1.5 text-xs font-bold uppercase text-gray-400 bg-white/5 border border-white/5 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
+                className="px-2 py-1 text-[10px] font-semibold uppercase text-gray-400 bg-white/5 border border-white/5 hover:bg-white/10 rounded cursor-pointer transition-all"
               >
                 Cancel
               </button>
               <button 
                 type="button"
                 onClick={handleSave} 
-                className="px-3 py-1.5 text-xs font-bold uppercase bg-emerald-500 text-black hover:bg-emerald-400 rounded-lg cursor-pointer transition-all"
+                className="px-2 py-1 text-[10px] font-semibold uppercase bg-emerald-500 text-black hover:bg-emerald-400 rounded cursor-pointer transition-all"
               >
-                Close & Save
+                Save
               </button>
             </div>
           </div>
@@ -198,14 +195,14 @@ const EditableField: React.FC<{
         placeholder,
     }
     return isTextArea 
-        ? <textarea {...commonProps} rows={4} /> 
+        ? <textarea {...commonProps} rows={3} /> 
         : <input type={type} {...commonProps} />;
   }
   
   if (isJsonContent(value)) {
       return (
           <div onClick={() => setIsEditing(true)} className="cursor-pointer group relative">
-              <div className="absolute top-2 right-2 text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 bg-[#0D1117] px-1 rounded border border-gray-800 z-10">Click to edit</div>
+              <div className="absolute top-1 right-1 text-[9px] text-gray-500 opacity-0 group-hover:opacity-100 bg-[#0D1117] px-1 rounded border border-gray-800 z-10">Click to edit</div>
               <JsonSyntaxHighlighter data={value} />
           </div>
       );
@@ -216,7 +213,7 @@ const EditableField: React.FC<{
           return (
               <div 
                   onClick={() => setIsEditing(true)} 
-                  className={`min-h-[24px] cursor-pointer hover:bg-white/5 rounded-xl p-4 -m-4 border border-transparent hover:border-white/10 ${textClassName}`}
+                  className={`cursor-pointer hover:bg-white/[0.02] rounded px-2 py-1 border border-transparent hover:border-white/5 ${textClassName}`}
               >
                   <span className="text-gray-500">{placeholder}</span>
               </div>
@@ -225,38 +222,38 @@ const EditableField: React.FC<{
       return (
           <div 
               onClick={() => setIsEditing(true)} 
-              className={`min-h-[24px] cursor-pointer hover:bg-white/5 rounded-xl p-4 -m-4 border border-transparent hover:border-white/10 ${textClassName}`}
+              className={`cursor-pointer hover:bg-white/[0.02] rounded px-2 py-1 border border-transparent hover:border-white/5 ${textClassName}`}
           >
               <div 
-                  className="ql-editor p-0 m-0 border-0 bg-transparent text-inherit"
+                  className="ql-editor p-0 m-0 border-0 bg-transparent text-inherit text-xs"
                   dangerouslySetInnerHTML={{ __html: value }} 
               />
           </div>
       );
   }
 
-  return <div onClick={() => setIsEditing(true)} className={`min-h-[24px] ${textClassName}`}>{value || <span className="text-gray-500">{placeholder}</span>}</div>;
+  return <div onClick={() => setIsEditing(true)} className={`cursor-pointer hover:text-emerald-400 rounded transition-colors ${textClassName}`}>{value || <span className="text-gray-500">{placeholder}</span>}</div>;
 }
 
 const CommentText: React.FC<{ text: string, renderWithMentions: (text: string) => React.ReactNode }> = ({ text, renderWithMentions }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const lines = text.split('\n');
-    const hasMoreThan15Lines = lines.length > 15;
+    const hasMoreThan10Lines = lines.length > 10;
 
     return (
         <div>
             <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
                 {renderWithMentions(
-                    isExpanded || !hasMoreThan15Lines
+                    isExpanded || !hasMoreThan10Lines
                         ? text
-                        : lines.slice(0, 15).join('\n') + ' ...'
+                        : lines.slice(0, 10).join('\n') + ' ...'
                 )}
             </p>
-            {hasMoreThan15Lines && (
+            {hasMoreThan10Lines && (
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     type="button"
-                    className="mt-1.5 text-[9px] font-black uppercase tracking-wider block text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer"
+                    className="mt-1 text-[9px] font-bold uppercase tracking-wider block text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer"
                 >
                     {isExpanded ? 'Show Less' : 'Read More'}
                 </button>
@@ -288,7 +285,6 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
     const value = e.target.value;
     setCommentText(value);
 
-    // Mentions logic
     const cursor = e.target.selectionStart;
     const textBeforeCursor = value.substring(0, cursor);
     const lastAtIdx = textBeforeCursor.lastIndexOf('@');
@@ -362,7 +358,7 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
             const matchedUser = projectMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (matchedUser) {
                 return (
-                    <span key={idx} className="font-extrabold text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded border border-emerald-500/20">
+                    <span key={idx} className="font-extrabold text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded border border-emerald-500/20 text-[10px]">
                         @{matchedUser.name}
                     </span>
                 );
@@ -373,43 +369,43 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex border-b border-white/5 pb-2 text-[10px] font-black uppercase tracking-widest gap-6">
+    <div className="space-y-4">
+      <div className="flex border-b border-white/5 pb-1 gap-4 text-[10px] font-bold uppercase tracking-wider">
         <button 
           type="button"
           onClick={() => setActiveTab2('comments')} 
-          className={`pb-2 border-b-2 transition-all ${activeTab === 'comments' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-500 hover:text-white'}`}
+          className={`pb-1 border-b-2 transition-all ${activeTab === 'comments' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-500 hover:text-white'}`}
         >
           Discussion ({task.comments?.length || 0})
         </button>
         <button 
           type="button"
           onClick={() => setActiveTab2('history')} 
-          className={`pb-2 border-b-2 transition-all ${activeTab === 'history' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-500 hover:text-white'}`}
+          className={`pb-1 border-b-2 transition-all ${activeTab === 'history' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-500 hover:text-white'}`}
         >
-          Telemetry Log ({task.history?.length || 0})
+          Telemetry trace ({task.history?.length || 0})
         </button>
       </div>
 
       {activeTab === 'comments' ? (
-        <div className="space-y-6">
-          <div className="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">
+        <div className="space-y-4">
+          <div className="space-y-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
             {(!task.comments || task.comments.length === 0) ? (
-              <p className="text-xs text-gray-500 py-4 text-center">No commentary injected on this node yet.</p>
+              <p className="text-[11px] text-gray-500 py-2 text-center font-mono italic">No commentary logged.</p>
             ) : (
               [...task.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(c => {
                 const commentUser = users.find(u => u.id === c.userId);
                 return (
-                  <div key={c.id} className="flex gap-3 items-start bg-white/[0.02] p-4 rounded-xl border border-white/5">
+                  <div key={c.id} className="flex gap-2.5 items-start py-2 border-b border-white/5 bg-transparent">
                     <UserAvatar 
                       user={commentUser} 
-                      className="w-7 h-7 text-[9px]" 
+                      className="w-5 h-5 text-[8px] flex-shrink-0" 
                       isOnline={commentUser ? onlineUsers.has(commentUser.id) : false} 
                     />
-                    <div className="flex-grow space-y-1">
-                      <div className="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400">
-                        <span className="text-gray-300">{commentUser?.name || 'Inscriber'}</span>
-                        <span className="text-gray-500 font-mono">{new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString()}</span>
+                    <div className="flex-grow min-w-0 space-y-0.5">
+                      <div className="flex justify-between items-center text-[9px] uppercase font-bold text-gray-500">
+                        <span className="text-gray-300 truncate">{commentUser?.name || 'Inscriber'}</span>
+                        <span className="text-[8px] font-mono whitespace-nowrap">{new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                       </div>
                       <CommentText text={c.text} renderWithMentions={renderWithMentions} />
                     </div>
@@ -419,22 +415,22 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
             )}
           </div>
 
-          <form onSubmit={handlePostComment} className="space-y-3 relative">
+          <form onSubmit={handlePostComment} className="space-y-2 relative">
             <div className="relative">
                 <textarea
                   ref={commentInputRef}
                   value={commentText}
                   onChange={handleTextChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Inscribe contribution... (use @ to summon members)"
-                  rows={3}
-                  className="w-full px-4 py-3 bg-[#1C2326] border border-white/5 hover:border-white/10 focus:border-emerald-500 rounded-xl focus:outline-none text-xs text-white placeholder-gray-500 leading-relaxed font-medium transition-all"
+                  placeholder="Inscribe contribution..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-[#1C2326]/50 border border-white/5 hover:border-white/10 focus:border-emerald-500/30 rounded focus:outline-none text-xs text-white placeholder-gray-500 leading-relaxed font-medium transition-all"
                 />
                 
                 {showMentions && mentionSuggestions.length > 0 && (
-                    <div className="absolute left-0 bottom-full mb-2 z-30 bg-[#1C2326] border border-white/10 rounded-xl shadow-2xl max-h-40 overflow-y-auto custom-scrollbar overflow-hidden w-64">
-                        <div className="bg-black/40 px-3 py-1.5 border-b border-white/5 text-[8px] font-black text-gray-500 uppercase tracking-widest">
-                            Workspace Members
+                    <div className="absolute left-0 bottom-full mb-1 z-30 bg-[#1C2326] border border-white/10 rounded shadow-2xl max-h-40 overflow-y-auto custom-scrollbar overflow-hidden w-56">
+                        <div className="bg-black/40 px-2 py-1 border-b border-white/5 text-[8px] font-black text-gray-500 uppercase tracking-widest">
+                            Members
                         </div>
                         {mentionSuggestions.map((member, index) => (
                             <button
@@ -442,12 +438,11 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
                                 type="button"
                                 onClick={() => handleMentionSelect(member)}
                                 onMouseEnter={() => setActiveMentionIndex(index)}
-                                className={`w-full flex items-center gap-2 px-3 py-2 text-left font-bold text-[10px] uppercase tracking-wider ${index === activeMentionIndex ? 'bg-emerald-500 text-black' : 'text-gray-300 hover:bg-white/5'}`}
+                                className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-left font-bold text-[9px] uppercase tracking-wider ${index === activeMentionIndex ? 'bg-emerald-500 text-black' : 'text-gray-300 hover:bg-white/5'}`}
                             >
-                                <UserAvatar user={member} className="w-5 h-5 text-[8px]" isOnline={onlineUsers.has(member.id)} />
+                                <UserAvatar user={member} className="w-4 h-4 text-[7px]" isOnline={onlineUsers.has(member.id)} />
                                 <div className="truncate">
-                                    <div>{member.name}</div>
-                                    <div className="text-[8px] opacity-60 lowercase">{member.email}</div>
+                                    <div className="truncate">{member.name}</div>
                                 </div>
                             </button>
                         ))}
@@ -459,24 +454,24 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
               <button 
                 type="submit" 
                 disabled={isSubmitting || !commentText.trim()} 
-                className="px-5 py-2.5 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-40"
+                className="px-3 py-1.5 bg-white text-black text-[9px] font-bold uppercase tracking-wider rounded hover:bg-gray-200 transition-colors disabled:opacity-40 cursor-pointer"
               >
-                Inscribe Commentary
+                Comment
               </button>
             </div>
           </form>
         </div>
       ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+        <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
           {(!task.history || task.history.length === 0) ? (
-            <p className="text-xs text-gray-400 py-4 text-center">No telemetry traces logged.</p>
+            <p className="text-[11px] text-gray-500 py-2 text-center font-mono italic">No telemetry traces logged.</p>
           ) : (
             task.history.map(h => (
-              <div key={h.id} className="flex gap-2.5 items-center bg-white/[0.01] p-3 rounded-xl border border-white/5 text-xs text-gray-300">
-                <UserAvatar user={h.user} className="w-5 h-5 text-[7px]" isOnline={h.user ? onlineUsers.has(h.user.id) : false} />
-                <span className="font-bold text-gray-400 uppercase tracking-wide text-[10px]">{h.user?.name || 'Agent'}</span>
-                <span className="text-gray-500 flex-grow">{h.changeDescription}</span>
-                <span className="text-[9px] text-gray-600 font-mono flex-shrink-0">{new Date(h.createdAt).toLocaleDateString()}</span>
+              <div key={h.id} className="flex gap-2 items-center py-1.5 border-b border-white/5 text-[11px] text-gray-300">
+                <UserAvatar user={h.user} className="w-4 h-4 text-[7px]" isOnline={h.user ? onlineUsers.has(h.user.id) : false} />
+                <span className="font-bold text-gray-400 uppercase tracking-wide text-[9px] select-none truncate max-w-[80px]">{h.user?.name || 'Agent'}</span>
+                <span className="text-gray-500 truncate flex-grow text-left pl-1">{h.changeDescription}</span>
+                <span className="text-[9px] text-gray-600 font-mono flex-shrink-0 select-none">{new Date(h.createdAt).toLocaleDateString()}</span>
               </div>
             ))
           )}
@@ -487,7 +482,7 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
 };
 
 export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({ 
-  task, currentUser, users, projectMembers, allProjectTags, sprints, onlineUsers, onClose, onUpdateTask, onUpdateSubtask, onDeleteSubtask, onAddSubtasks, onAddComment, aiFeaturesEnabled, onAddTask, columns 
+  task, currentUser, users, projectMembers, allProjectTags, sprints, onlineUsers, projectName, onClose, onUpdateTask, onUpdateSubtask, onDeleteSubtask, onAddSubtasks, onAddComment, aiFeaturesEnabled, onAddTask, columns 
 }) => {
   const [editedTask, setEditedTask] = useState<Task>(task);
   const [aiState, setAiState] = useState<AIGenerationState>('idle');
@@ -525,18 +520,17 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
       taskType: nextType,
     };
     
-    // Add history item
     const conversationLog: TaskHistory = {
       id: `temp-h-conv-${Date.now()}`,
       user: currentUser,
       createdAt: new Date().toISOString(),
-      changeDescription: `converted this item from ${editedTask.taskType === 'bug' ? 'Bug' : 'Task'} to ${nextType === 'bug' ? 'Bug' : 'Task'}`
+      changeDescription: `converted type to ${nextType === 'bug' ? 'Bug' : 'Task'}`
     };
     updated.history = [conversationLog, ...(editedTask.history || [])];
     
     setEditedTask(updated);
     await onUpdateTask(updated);
-    showToast(`Successfully converted to ${nextType === 'bug' ? 'Bug' : 'Task'}!`);
+    showToast(`Converted to ${nextType === 'bug' ? 'Bug' : 'Task'}!`);
   };
 
   const handleCreateDerivation = async () => {
@@ -546,10 +540,9 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
     const derivedTitle = `${targetType === 'bug' ? 'Bug' : 'Task'} derived from ${editedTask.ticketId}: ${editedTask.title.substring(0, 30)}`;
     const derivedDesc = `**References parent:** [${editedTask.ticketId}]\n\n**Parent Description:**\n${editedTask.description || 'None'}`;
     
-    // Get correct column UUID
     const parentColumnId = columns?.find(c => c.taskIds.includes(editedTask.id))?.id || columns?.[0]?.id || '';
     if (!parentColumnId) {
-      showToast('Error: Unable to find column to place derived item.');
+      showToast('Error: Column placement missing for derived task.');
       return;
     }
 
@@ -571,7 +564,7 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
         id: `temp-h-link-${Date.now()}`,
         user: currentUser,
         createdAt: new Date().toISOString(),
-        changeDescription: `derived and linked related ${targetType === 'bug' ? 'Bug' : 'Task'} with reference identifier ${editedTask.ticketId}`
+        changeDescription: `derived and linked related ${targetType === 'bug' ? 'Bug' : 'Task'} (${editedTask.ticketId})`
       };
       
       const updatedOrigin = {
@@ -628,7 +621,7 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
         setAiState('success');
     } catch(err) {
         setAiState('error');
-        setAiError(err instanceof Error ? err.message : 'Neural link failure.');
+        setAiError(err instanceof Error ? err.message : 'Neural decomposition failure.');
     }
   }, [editedTask, onAddSubtasks]);
 
@@ -711,104 +704,97 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
   const progress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   return (
-    <div className="w-full py-4 px-2 sm:px-2 space-y-6">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-[#0D1112]">
       {/* Header breadcrumbs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3 pb-6 border-b border-white/5">
+      <header className="h-14 min-h-[56px] max-h-14 flex-shrink-0 border-b border-white/5 bg-[#0E1314]/85 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-35">
         <div className="flex items-center gap-3">
           <button 
             type="button" 
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center cursor-pointer"
+            className="p-1 px-2 text-xs rounded bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1 cursor-pointer"
           >
-            <ArrowLeftIcon className="w-5 h-5" />
+            <ArrowLeftIcon className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Back</span>
           </button>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-black text-emerald-500 uppercase tracking-widest mb-1">
-              <span>{editedTask.ticketId}</span>
-              <span className="text-white/20">/</span>
-              <span>Edit Details</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Workspace Node Context</h1>
+          
+          <div className="flex items-center gap-1.5 text-xs text-gray-400 font-semibold truncate whitespace-nowrap">
+            <span className="text-gray-500 truncate">{projectName || "Workspace"}</span>
+            <span className="text-gray-700">/</span>
+            <span className="text-white bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 text-[11px] font-bold truncate">{editedTask.ticketId}</span>
+            <span className="text-gray-700">/</span>
+            <span className="text-gray-400 text-[11px] uppercase tracking-widest">Details</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
           {editedTask.taskType === 'bug' ? (
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1 rounded-full animate-pulse select-none">
+            <span className="text-[10px] uppercase tracking-wider bg-red-400/10 text-red-400 border border-red-500/10 px-2 py-0.5 rounded">
               Bug
             </span>
           ) : (
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full select-none">
+            <span className="text-[10px] uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">
               Task
             </span>
           )}
           {editedTask.referenceNo && (
-            <span className="text-[10px] sm:text-xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full">
-              🔗 Ref: {editedTask.referenceNo}
+            <span className="text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded">
+              Ref: {editedTask.referenceNo}
             </span>
           )}
         </div>
-      </div>
+      </header>
+
+      {/* Main Page scrollable body */}
+      <div className="flex-grow overflow-y-auto custom-scrollbar p-6">
+        <div className="max-w-6xl mx-auto w-full space-y-4">
 
       {toastMessage && (
-        <div className="bg-emerald-500 text-black font-black uppercase tracking-widest text-[9px] px-4 py-2 rounded-xl shadow-2xl max-w-max mx-auto animate-bounce">
-          🎉 {toastMessage}
+        <div className="bg-emerald-500 text-black font-bold text-[10px] uppercase tracking-wider px-3 py-1 rounded max-w-max mx-auto shadow animate-pulse">
+          {toastMessage}
         </div>
       )}
 
-      {/* Main Grid View */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main Grid View - Exactly 70% Left, 30% Right column */}
+      <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4 lg:gap-6 items-start">
         
-        {/* Left column (2 spans) - Contains content controls */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="space-y-8 w-full">
+        {/* Left column (Main Details & Discussion) */}
+        <div className="space-y-4 min-w-0">
+          <div className="space-y-4 w-full">
             
-            {/* Header / Title area inside card */}
-            <div className="flex justify-between items-start">
-              <div className="flex-grow mr-4 group flex items-start gap-3 w-full">
-                <div className="p-3 rounded-2xl bg-white/5 text-emerald-400 mt-1 flex-shrink-0">
-                  <CheckSquareIcon className="w-6 h-6" />
-                </div>
+            {/* Title display */}
+            <div className="flex justify-between items-start my-1 pb-1">
+              <div className="flex-grow group flex items-start gap-2 w-full">
                 <div className="flex-grow min-w-0">
-                  <span className="text-[10px] font-mono font-bold uppercase text-gray-500 mb-1 block">Title (Click to Edit)</span>
                   <EditableField 
                       value={editedTask.title}
                       onSave={(newTitle) => handleUpdateField('title', newTitle)}
-                      textClassName="text-2xl font-black w-full cursor-pointer hover:text-emerald-400 rounded transition-colors text-white tracking-tight break-words block"
-                      inputClassName="text-2xl font-black p-2 rounded border-2 border-emerald-500/20 bg-black/40 focus:outline-none text-white w-full"
+                      textClassName="text-base font-semibold w-full cursor-pointer hover:text-emerald-400 rounded transition-colors text-white break-words block"
+                      inputClassName="text-base font-semibold p-1 px-2 rounded border border-emerald-500/20 bg-black/40 focus:outline-none text-white w-full"
                       placeholder="Task Title"
                   />
                 </div>
-                <CopyButton text={`${editedTask.ticketId}: ${editedTask.title}`} className="opacity-0 group-hover:opacity-100 mt-2 flex-shrink-0" />
+                <CopyButton text={`${editedTask.ticketId}: ${editedTask.title}`} className="opacity-0 group-hover:opacity-100 flex-shrink-0" />
               </div>
             </div>
 
             {/* Injected metadata */}
-            <div className="flex flex-wrap items-center gap-6 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 bg-white/5 p-4 rounded-xl border border-white/5">
-              <div className="flex items-center gap-2.5">
-                  <UserIcon className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Origin:</span>
-                  {taskCreator ? (
-                      <div className="flex items-center gap-2 bg-black/20 px-2 py-1 rounded-lg">
-                          <UserAvatar user={taskCreator} className="w-5 h-5 text-[8px]" isOnline={onlineUsers.has(taskCreator.id)} />
-                          <span className="text-white">{taskCreator.name}</span>
-                      </div>
-                  ) : (
-                      <span className="text-white">External Node</span>
-                  )}
-              </div>
-              <div className="flex items-center gap-2.5">
-                  <HistoryIcon className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Injected:</span>
-                  <span className="text-white font-mono">{new Date(task.createdAt).toLocaleDateString()} {new Date(task.createdAt).toLocaleTimeString()}</span>
-              </div>
+            <div className="flex flex-wrap items-center gap-4 text-[10px] text-gray-500 border-none py-1 block">
+              <span className="flex items-center gap-1">
+                <UserIcon className="w-3 h-3 text-emerald-400" />
+                Origin: <span className="text-gray-300 font-medium ml-0.5">{taskCreator ? taskCreator.name : 'External Node'}</span>
+              </span>
+              <span className="text-gray-700">|</span>
+              <span className="flex items-center gap-1">
+                <HistoryIcon className="w-3 h-3 text-emerald-400" />
+                Injected: <span className="text-gray-300 font-mono ml-0.5">{new Date(task.createdAt).toLocaleDateString()} {new Date(task.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+              </span>
             </div>
 
             {/* Contextual description */}
-            <section className="space-y-3">
-              <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-                  <MessageSquareIcon className="w-4 h-4 text-emerald-500" />
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Contextual Data (Click to Edit)</h4>
+            <section className="space-y-1.5">
+              <div className="flex items-center gap-1.5 pb-1 border-b border-white/5">
+                  <MessageSquareIcon className="w-3.5 h-3.5 text-emerald-500" />
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Contextual Data</h4>
               </div>
               <div className="group relative">
                   <EditableField 
@@ -820,69 +806,69 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
                           ? (textContent.length > 80 ? `${textContent.substring(0, 80)}...` : textContent)
                           : 'empty';
                         try {
-                          await onAddComment(task.id, `📝 Updated the description to: "${preview}"`);
+                          await onAddComment(task.id, `📝 Updated description: "${preview}"`);
                         } catch (err) {
-                          console.warn("Could not post auto-save description comment:", err);
+                          console.warn("Auto description comment status: skipped.", err);
                         }
                       }}
                       isRichText
                       autoSave
-                      textClassName="text-sm text-gray-300 w-full cursor-pointer hover:bg-white/5 rounded-xl p-4 -m-4 min-h-[100px] leading-relaxed border border-transparent hover:border-white/10 block bg-[#1C2326]/40 border-white/5"
-                      inputClassName="text-sm p-4 rounded-xl border-2 border-emerald-500/20 bg-[#1C2326] focus:outline-none text-white w-full shadow-inner"
-                      placeholder="No context provided. Click to synthesize description..."
+                      textClassName="text-xs text-gray-300 w-full cursor-pointer hover:bg-white/[0.02] rounded p-2.5 min-h-[70px] leading-relaxed border border-white/5 block bg-black/10"
+                      inputClassName="text-xs p-2.5 rounded border border-emerald-500/25 bg-[#0C1012] focus:outline-none text-white w-full"
+                      placeholder="No context provided. Click to insert description..."
                   />
                   {!isJsonContent(editedTask.description) && (
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <CopyButton text={editedTask.description} className="bg-black/60 p-1.5 rounded-lg" />
+                      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <CopyButton text={editedTask.description} className="bg-black/60 p-1 rounded" />
                       </div>
                   )}
               </div>
             </section>
 
             {/* Sub-Nodes list */}
-            <section className="space-y-4 pt-6 border-t border-white/5">
+            <section className="space-y-2 pt-3 border-t border-white/5">
               <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                      <CheckSquareIcon className="w-4 h-4 text-emerald-500" />
-                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Sub-Nodes</h4>
+                  <div className="flex items-center gap-1.5">
+                      <CheckSquareIcon className="w-3.5 h-3.5 text-emerald-500" />
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Sub-Nodes</h4>
                   </div>
                   {totalSubtasks > 0 && (
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                           <span className="text-[10px] font-mono text-emerald-500/70">{Math.round(progress)}% Complete</span>
-                          <div className="w-32 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                          <div className="w-24 bg-white/5 rounded-full h-1 overflow-hidden">
                               <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
                           </div>
                       </div>
                   )}
               </div>
 
-              <div className="space-y-3">
+              <div className="divide-y divide-white/5 border-t border-b border-white/5">
                 {(editedTask.subtasks || []).map(subtask => {
                   return (
-                      <div key={subtask.id} className="flex items-center gap-4 bg-white/5 p-3 rounded-2xl group border border-white/5 hover:border-white/10 transition-all">
+                      <div key={subtask.id} className="flex items-center gap-3 py-1.5 hover:bg-white/[0.01] transition-all group">
                           <input
                               type="checkbox"
                               checked={subtask.completed}
                               onChange={() => handleSubtaskToggle(subtask.id)}
-                              className="w-5 h-5 rounded-lg border-2 border-white/10 bg-black/40 text-emerald-500 focus:ring-emerald-500/50 flex-shrink-0 cursor-pointer"
+                              className="w-4 h-4 rounded border border-white/10 bg-[#1C2326] text-emerald-500 focus:ring-emerald-500/55 flex-shrink-0 cursor-pointer"
                           />
                           <div className="flex-grow min-w-0">
-                               <div className="flex items-center gap-2 mb-0.5">
-                                  <span className="text-[9px] font-mono text-emerald-500/40 font-bold uppercase tracking-tight">{subtask.ticketId}</span>
+                               <div className="flex items-center gap-1 mb-px">
+                                  <span className="text-[9px] font-mono text-emerald-500/40 font-bold uppercase">{subtask.ticketId}</span>
                                </div>
                                <EditableField
                                   value={subtask.title}
                                   onSave={(newTitle) => handleSubtaskTitleChange(subtask.id, newTitle)}
-                                  textClassName={`text-sm font-medium ${subtask.completed ? 'line-through text-gray-600' : 'text-gray-200'} truncate block`}
-                                  inputClassName="text-sm p-1 rounded bg-[#1C2326] border border-white/5 focus:border-emerald-500/30 focus:outline-none text-white w-full"
+                                  textClassName={`text-xs ${subtask.completed ? 'line-through text-gray-600' : 'text-gray-300'} truncate block`}
+                                  inputClassName="text-xs p-0.5 rounded bg-[#1C2326] border border-white/5 focus:outline-none text-white w-full"
                                   placeholder="Edit sub-node..."
                               />
                           </div>
-                          <div className="ml-auto flex items-center gap-2.5 opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                          <div className="ml-auto flex items-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
                               <select
                                   value={subtask.assigneeId || ''}
                                   onChange={(e) => handleSubtaskAssigneeChange(subtask.id, e.target.value)}
-                                  className="text-[9px] font-black uppercase tracking-widest bg-black/40 border border-white/5 text-white rounded-lg py-1 px-2 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 cursor-pointer"
+                                  className="text-[9px] font-bold uppercase bg-[#1C2326] border border-white/5 text-white rounded py-0.5 px-1.5 focus:outline-none cursor-pointer"
                               >
                                   <option value="">Auto</option>
                                   {projectMembers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -890,14 +876,14 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
                               
                               <UserAvatar 
                                   user={subtask.assignee}
-                                  className="w-6 h-6 text-[8px] flex-shrink-0" 
+                                  className="w-5 h-5 text-[8px] flex-shrink-0" 
                                   isOnline={subtask.assignee ? onlineUsers.has(subtask.assignee.id) : false}
                               />
                               
                               <button 
                                   type="button"
                                   onClick={() => handleDeleteSubtask(subtask.id)}
-                                  className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-all flex-shrink-0 cursor-pointer"
+                                  className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-all cursor-pointer"
                               >
                                   <TrashIcon className="w-3.5 h-3.5" />
                               </button>
@@ -907,68 +893,66 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
                 })}
               </div>
 
-              <form onSubmit={handleAddManualSubtask} className="flex flex-wrap items-center gap-3 bg-black/20 p-2 rounded-2xl border border-white/5">
+              {/* Subtask Input */}
+              <form onSubmit={handleAddManualSubtask} className="flex items-center gap-2 bg-black/10 p-1 rounded mt-1">
                   <input 
                       type="text"
                       value={newSubtaskTitle}
                       onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                      placeholder="New Sub-Node Objective..."
-                      className="flex-grow px-4 py-2 bg-transparent text-sm text-white focus:outline-none"
+                      placeholder="+ Add manual sub-task..."
+                      className="flex-grow px-2 py-0.5 bg-transparent text-xs text-white focus:outline-none placeholder-gray-650"
                   />
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                       <select
                           value={newSubtaskAssigneeId}
                           onChange={(e) => setNewSubtaskAssigneeId(e.target.value)}
-                          className="px-3 py-1.5 bg-white/5 border border-white/5 rounded-xl text-[10px] font-bold uppercase text-gray-400 focus:text-white transition-colors cursor-pointer"
+                          className="px-1.5 py-0.5 bg-[#1C2326] border border-white/5 rounded text-[9px] text-gray-400 focus:text-white cursor-pointer"
                       >
-                          <option value="">Unassigned</option>
+                          <option value="">Assignee</option>
                           {projectMembers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                       </select>
-                      <button type="submit" disabled={!newSubtaskTitle.trim()} className="p-2.5 bg-white text-black rounded-xl hover:bg-gray-200 transition-all disabled:opacity-30 cursor-pointer">
-                          <PlusIcon className="w-4 h-4"/>
+                      <button type="submit" disabled={!newSubtaskTitle.trim()} className="p-1 px-2.5 bg-white text-black text-[9px] font-bold uppercase rounded hover:bg-gray-200 transition-all disabled:opacity-30 cursor-pointer">
+                          Add
                       </button>
                   </div>
               </form>
 
+              {/* Neural Decomposition widget */}
               {aiFeaturesEnabled && (
-                  <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-2xl mt-4 relative overflow-hidden group/ai">
-                      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover/ai:opacity-10 transition-opacity">
-                          <SparklesIcon className="w-16 h-16 text-emerald-400" />
+                  <div className="bg-emerald-500/5 border border-emerald-500/10 p-2.5 rounded mt-2 flex items-center justify-between gap-4">
+                      <div className="flex items-start gap-1.5">
+                          <SparklesIcon className="w-3.5 h-3.5 text-emerald-400 animate-pulse mt-0.5 flex-shrink-0"/>
+                          <div>
+                              <h4 className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Neural Decomposition</h4>
+                              <p className="text-[10px] text-emerald-400/60 leading-tight">Apply AI to generate subtask mesh targets.</p>
+                          </div>
                       </div>
-                      <div className="flex items-center gap-2 mb-2">
-                          <SparklesIcon className="w-4 h-4 text-emerald-400 animate-pulse"/>
-                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Neural Decomposition</h4>
-                      </div>
-                      <p className="text-xs text-emerald-400/60 mb-4 leading-relaxed font-medium">
-                          AI will analyze task complexity and synthesize a hierarchy of granular sub-nodes.
-                      </p>
                       <button
                           type="button"
                           onClick={handleGenerateSubtasks}
                           disabled={aiState === 'loading'}
-                          className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-emerald-500 text-black font-black uppercase tracking-[0.2em] rounded-xl shadow-xl shadow-emerald-500/10 hover:bg-emerald-400 transition-all text-[10px] disabled:opacity-50 cursor-pointer"
+                          className="flex items-center justify-center gap-1 px-2.5 py-1 bg-emerald-500 text-black font-semibold rounded hover:bg-emerald-400 transition-all text-[9px] disabled:opacity-50 cursor-pointer flex-shrink-0"
                       >
                       {aiState === 'loading' ? (
                           <>
-                              <LoaderCircleIcon className="w-4 h-4 animate-spin" />
-                              Generating Mesh...
+                              <LoaderCircleIcon className="w-3 h-3 animate-spin mr-1" />
+                              Working...
                           </>
                       ) : (
                           <>
-                              <BotMessageSquareIcon className="w-4 h-4" />
-                              Synthesize Sub-Nodes
+                              <BotMessageSquareIcon className="w-3 h-3 mr-1" />
+                              Decompose
                           </>
                       )}
                       </button>
-                      {aiState === 'error' && <p className="text-[10px] text-red-400 font-bold uppercase mt-3 tracking-widest text-center">{aiError}</p>}
                   </div>
               )}
             </section>
 
           </div>
 
-          {/* Context Activity Logs and Comment Thread Section */}
-          <div className="bg-[#131C1B]/90 border border-white/5 rounded-2xl p-6 shadow-xl">
+          {/* Activity Logs without nesting borders */}
+          <div className="pt-2">
             <ActivitySection 
                 task={editedTask} 
                 onAddComment={onAddComment} 
@@ -980,106 +964,106 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
           </div>
         </div>
 
-        {/* Right Parameters Column */}
-        <div className="space-y-6">
-          <div className="bg-[#131C1B]/90 border border-white/5 rounded-2xl p-6 shadow-xl space-y-6">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 border-b border-white/5 pb-2">Node Parameters</h3>
+        {/* Right properties Column - Name: "Contextual Data" (Exactly 30% width) */}
+        <div className="space-y-4">
+          <div className="bg-white/[0.01] border border-white/5 rounded p-3 space-y-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500 border-b border-white/5 pb-1">Contextual Data</h3>
             
-            {/* Assignee Selection */}
+            {/* Assignee */}
             <div>
-              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Assignee</label>
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Assignee</label>
               <div className="relative">
                   <select
                     value={editedTask.assignee?.id || ''}
                     onChange={handleAssigneeChange}
-                    className="w-full pl-3 pr-10 py-2.5 border border-white/5 rounded-xl bg-[#1C2326] text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none font-bold cursor-pointer"
+                    className="w-full pl-2 pr-8 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none appearance-none rounded cursor-pointer"
                   >
                     <option value="">Unassigned</option>
                     {projectMembers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                       <UserIcon className="w-4 h-4" />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                       <UserIcon className="w-3.5 h-3.5" />
                   </div>
               </div>
             </div>
 
-            {/* Priority Selection */}
+            {/* Priority */}
             <div>
-              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Priority</label>
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Priority</label>
               <select
                 value={editedTask.priority}
                 onChange={handlePriorityChange}
-                className="w-full px-3 py-2.5 border border-white/5 rounded-xl bg-[#1C2326] text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50 font-bold uppercase tracking-widest cursor-pointer"
+                className="w-full px-2 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none rounded cursor-pointer uppercase font-mono text-[10px]"
               >
                 {Object.values(TaskPriority).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
 
-            {/* Active Sprint Selection */}
+            {/* Sprint */}
             <div>
-              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Active Sprint</label>
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Sprint</label>
               <select
                 value={editedTask.sprintId || ''}
                 onChange={handleSprintChange}
-                className="w-full px-3 py-2.5 border border-white/5 rounded-xl bg-[#1C2326] text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50 font-bold cursor-pointer"
+                className="w-full px-2 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none rounded cursor-pointer"
               >
                 <option value="">Backlog</option>
                 {(sprints || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
 
-            {/* Due date picker */}
+            {/* Due date */}
             <div>
-              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Due Cycle</label>
-              <div className="bg-[#1C2326] border border-white/5 rounded-xl p-0.5">
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1 select-none">Due Cycle</label>
+              <div className="bg-[#1C2326] border border-white/5 rounded p-0.5">
                   <EditableField
                       value={editedTask.dueDate || ''}
                       onSave={(newDate) => handleUpdateField('dueDate', newDate)}
                       type="date"
-                      textClassName="text-xs text-white font-bold text-center px-2 py-2.5 cursor-pointer hover:bg-white/5 rounded-lg text-center mx-auto block"
-                      inputClassName="text-xs p-2 rounded bg-black/40 border border-white/5 focus:border-emerald-500/30 focus:outline-none text-white text-center w-full"
-                      placeholder="Set Due Date"
+                      textClassName="text-xs text-white px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-center block"
+                      inputClassName="text-xs p-0.5 rounded bg-black/40 border-none text-white text-center w-full focus:outline-none"
+                      placeholder="No Due Date"
                   />
               </div>
             </div>
 
-            {/* Reference identifier */}
+            {/* Reference */}
             <div>
-              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Reference No</label>
-              <div className="bg-[#1C2326] border border-white/5 rounded-xl p-0.5">
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1 select-none">Reference ID</label>
+              <div className="bg-[#1C2326] border border-white/5 rounded p-0.5">
                   <EditableField
                       value={editedTask.referenceNo || ''}
                       onSave={(newRef) => handleUpdateField('referenceNo', newRef)}
-                      textClassName="text-xs text-white font-bold text-center px-2 py-2.5 cursor-pointer hover:bg-white/5 rounded-lg text-center mx-auto block"
-                      inputClassName="text-xs p-2 rounded bg-[#1C2326] border border-white/5 focus:border-emerald-500/30 focus:outline-none text-white text-center w-full"
-                      placeholder="Set Ref ID"
+                      textClassName="text-xs text-white px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-center block"
+                      inputClassName="text-xs p-0.5 rounded bg-black/40 border-none text-white text-center w-full focus:outline-none"
+                      placeholder="Set Reference"
                   />
               </div>
             </div>
 
-            {/* Transition Actions */}
-            <div className="pt-4 border-t border-white/5 space-y-3">
-              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 block">Mutate Context</span>
-              <div className="grid grid-cols-2 gap-3">
+            {/* Converter and derivation actions */}
+            <div className="pt-2 border-t border-white/5 space-y-2">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500 block">Actions</span>
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleConvertType}
-                  className="w-full text-[9px] font-black uppercase bg-[#1C2326] border border-white/5 hover:bg-[#2A3438] hover:text-white hover:border-white/15 px-3 py-2.5 rounded-xl transition-all cursor-pointer text-center"
+                  className="w-full text-[9px] font-bold uppercase bg-[#1C2326] border border-white/5 hover:bg-[#2A3438] hover:text-white px-2 py-1 rounded transition-all cursor-pointer text-center"
                 >
-                  🔄 Convert Type
+                  Type 🔄
                 </button>
 
                 {onAddTask && (
                   <button
                     type="button"
                     onClick={handleCreateDerivation}
-                    className={`w-full text-[9px] font-black uppercase px-3 py-2.5 rounded-xl transition-all cursor-pointer text-center ${
+                    className={`w-full text-[9px] font-bold uppercase px-2 py-1 rounded transition-all cursor-pointer text-center ${
                       editedTask.taskType === 'bug' 
-                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 animate-pulse' 
+                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
                         : 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20'
                     }`}
                   >
-                    ➕ Derive Link
+                    Derive ➕
                   </button>
                 )}
               </div>
@@ -1087,19 +1071,19 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
 
           </div>
 
-          {/* Node Tags */}
-          <div className="bg-[#131C1B]/90 border border-white/5 rounded-2xl p-6 shadow-xl space-y-3">
-            <div className="flex items-center gap-2">
-                <TagIcon className="w-4 h-4 text-emerald-500" />
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Node Tags</h4>
+          {/* Node Tags sidebar category */}
+          <div className="bg-white/[0.01] border border-white/5 rounded p-3 space-y-2">
+            <div className="flex items-center gap-1.5">
+                <TagIcon className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Node Tags</span>
             </div>
-            <div className="relative bg-[#1C2326] p-4 rounded-xl border border-white/5">
-                <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative bg-[#1C2326] p-2 rounded border border-white/5">
+                <div className="flex flex-wrap gap-1 items-center">
                     {editedTask.tags.filter(tag => tag && !tag.startsWith('ticket:') && !tag.startsWith('type:') && !tag.startsWith('ref:')).map(tag => (
-                        <span key={tag} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-lg border border-emerald-500/20 transition-all hover:bg-emerald-500/20">
+                        <span key={tag} className="flex items-center gap-1 text-[9px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">
                             {tag}
                             <button type="button" onClick={() => handleRemoveTag(tag)} className="text-emerald-500/50 hover:text-emerald-400 cursor-pointer">
-                                <XIcon className="w-3.5 h-3.5"/>
+                                <XIcon className="w-3 h-3"/>
                             </button>
                         </span>
                     ))}
@@ -1110,19 +1094,19 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
                         onKeyDown={handleTagInputKeyDown}
                         onFocus={() => setIsTagInputFocused(true)}
                         onBlur={() => setTimeout(() => setIsTagInputFocused(false), 200)}
-                        placeholder="+ Add Label..."
-                        className="flex-grow px-2 py-1 text-xs font-bold uppercase tracking-widest bg-transparent focus:outline-none text-white placeholder-gray-600"
+                        placeholder="+ Label..."
+                        className="flex-grow px-1.5 py-0.5 text-xs bg-transparent focus:outline-none text-white placeholder-gray-600 font-medium"
                     />
                 </div>
                  {isTagInputFocused && tagSuggestions.length > 0 && (
-                  <div className="absolute z-20 left-0 right-0 top-full mt-2 bg-[#1C2326] border border-white/10 rounded-xl shadow-2xl max-h-40 overflow-y-auto custom-scrollbar overflow-hidden">
+                  <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-[#1C2326] border border-white/10 rounded shadow-2xl max-h-40 overflow-y-auto custom-scrollbar overflow-hidden">
                       {tagSuggestions.map((tag, index) => (
                           <button 
                               type="button"
                               key={tag}
                               onClick={() => addTag(tag)}
                               onMouseEnter={() => setActiveSuggestionIndex(index)}
-                              className={`w-full text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest ${index === activeSuggestionIndex ? 'bg-emerald-500 text-black' : 'text-white hover:bg-white/5'} cursor-pointer`}
+                              className={`w-full text-left px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider ${index === activeSuggestionIndex ? 'bg-emerald-500 text-black' : 'text-white hover:bg-white/5'} cursor-pointer`}
                           >
                               {tag}
                           </button>
@@ -1132,20 +1116,21 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-3 bg-white text-black font-extrabold rounded-xl hover:bg-gray-200 text-xs uppercase tracking-widest transition-all shadow-inner text-center block cursor-pointer"
+              className="w-full py-2 bg-white text-black font-bold rounded hover:bg-gray-200 text-xs uppercase tracking-wider transition-all text-center block cursor-pointer"
             >
-              Return to Project Board
+              Return Home
             </button>
           </div>
 
         </div>
 
       </div>
-
+        </div>
+      </div>
     </div>
   );
 };

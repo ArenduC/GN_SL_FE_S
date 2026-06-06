@@ -5,7 +5,7 @@ let currentProjectId: string | null = null;
 let currentToken: string | null = null;
 
 export const getSocketUrl = (): string => {
-    return 'https://zip-unexpected-antique-curriculum.trycloudflare.com';
+    return 'https://finite-creatures-adapters-psp.trycloudflare.com';
 };
 
 export const getSocket = (): Socket | null => {

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Bookmark, Trash2 } from 'lucide-react';
 import { 
   SearchIcon, 
   XIcon, 
@@ -12,7 +13,19 @@ import {
   ZapIcon,
   ActivityIcon
 } from './Icons';
-import { User, Sprint, TaskPriority } from '../types';
+import { User, Sprint, TaskPriority, FilterSegment } from '../types';
+
+interface SavedFilterItem {
+  id: string;
+  name: string;
+  searchTerm: string;
+  priorityFilter: string[];
+  assigneeFilter: string[];
+  statusFilter: string[];
+  tagFilter: string[];
+  startDate: string;
+  endDate: string;
+}
 
 interface RightControlDeckProps {
   // Search
@@ -63,6 +76,9 @@ interface RightControlDeckProps {
   aiFeaturesEnabled?: boolean;
   projectView?: string;
   projectColumnsList?: { id: string, name: string, taskIds: string[] }[];
+  filterSegments?: FilterSegment[];
+  addFilterSegment?: (name: string, filters: FilterSegment['filters']) => Promise<void>;
+  deleteFilterSegment?: (segmentId: string) => Promise<void>;
 }
 
 export const RightControlDeck: React.FC<RightControlDeckProps> = ({
@@ -100,11 +116,85 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   onNeuralNexusClick,
   aiFeaturesEnabled = false,
   projectView = 'board',
-  projectColumnsList = []
+  projectColumnsList = [],
+  filterSegments,
+  addFilterSegment,
+  deleteFilterSegment
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'filters' | 'actions' | 'analytics'>('filters');
+  const [activeTab, setActiveTab] = useState<'filters' | 'actions' | 'analytics' | 'saved'>('filters');
   const [newColumnTitle, setNewColumnTitle] = useState('');
+  const [newFilterName, setNewFilterName] = useState('');
+  const [savedFilters, setSavedFilters] = useState<SavedFilterItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('saved_filters_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('saved_filters_v1', JSON.stringify(savedFilters));
+  }, [savedFilters]);
+
+  // Handler to save the active configuration as a new filter item
+  const handleSaveCurrentFilter = async (name: string) => {
+    if (!name.trim()) return;
+    const filtersObj = {
+      searchTerm,
+      priorityFilter: [...priorityFilter],
+      assigneeFilter: [...assigneeFilter],
+      statusFilter: [...statusFilter],
+      tagFilter: [...tagFilter],
+      startDate,
+      endDate,
+      sprintFilter: []
+    };
+
+    if (addFilterSegment) {
+      try {
+        await addFilterSegment(name.trim(), filtersObj);
+        setNewFilterName(''); // reset the text field
+      } catch (err) {
+        console.error("Error adding filter segment:", err);
+      }
+    } else {
+      const newFilter: SavedFilterItem = {
+        id: 'filter_' + Date.now(),
+        name: name.trim(),
+        ...filtersObj
+      };
+      setSavedFilters([newFilter, ...savedFilters]);
+      setNewFilterName(''); // reset the text field
+    }
+  };
+
+  // Handler to apply the chosen template filter properties to the workspace
+  const handleApplyFilter = (item: any) => {
+    const filters = item.filters || item;
+    setSearchTerm(filters.searchTerm || '');
+    setPriorityFilter(filters.priorityFilter || []);
+    setAssigneeFilter(filters.assigneeFilter || []);
+    setStatusFilter(filters.statusFilter || []);
+    setTagFilter(filters.tagFilter || []);
+    setStartDate(filters.startDate || '');
+    setEndDate(filters.endDate || '');
+  };
+
+  // Handler to delete a registered template filter
+  const handleDeleteFilter = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // preserve click focus from applying the deleted filter
+    if (deleteFilterSegment) {
+      try {
+        await deleteFilterSegment(id);
+      } catch (err) {
+        console.error("Error deleting filter segment:", err);
+      }
+    } else {
+      setSavedFilters(savedFilters.filter(f => f.id !== id));
+    }
+  };
 
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
 
@@ -116,7 +206,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     }
   };
 
-  const handleTabClick = (tab: 'filters' | 'actions' | 'analytics') => {
+  const handleTabClick = (tab: 'filters' | 'actions' | 'analytics' | 'saved') => {
     if (isOpen) {
       if (activeTab === tab) {
         setIsOpen(false);
@@ -178,16 +268,25 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     (startDate || endDate ? 1 : 0);
 
   return (
-    <div className="hidden lg:flex fixed right-0 top-14 bottom-0 z-30 transition-all shadow-2xl h-[calc(100vh-56px)] select-none">
+    <div 
+      className={`hidden lg:flex fixed right-0 top-0 bottom-0 z-30 transition-all duration-300 ease-in-out shadow-2xl h-screen select-none ${
+        isOpen ? 'w-[368px]' : 'w-12'
+      }`}
+    >
       
       {/* 1. Main Sliding Panel Content */}
-      {isOpen && (
-        <div className="w-80 bg-[#0B0E0F]/95 backdrop-blur-md border-l border-white/5 h-full flex flex-col justify-between overflow-y-auto custom-scrollbar border-r border-white/5">
+      <div 
+        className={`bg-[#0B0E0F]/95 backdrop-blur-md h-full flex flex-col justify-between overflow-y-auto custom-scrollbar border-r border-white/5 transition-all duration-300 ease-in-out ${
+          isOpen 
+            ? 'w-80 border-l border-white/5 opacity-100 visible' 
+            : 'w-0 border-l-0 border-r-0 opacity-0 invisible overflow-hidden'
+        }`}
+      >
           
           <div className="divide-y divide-white/5 flex-grow flex flex-col min-h-0">
             
             {/* Header section (dynamically changes depending on tab) */}
-            <div className="p-4 flex items-center justify-between bg-black/20">
+            <div className="h-14 border-b border-white/5 px-4 flex items-center justify-between bg-black/20 flex-shrink-0">
               <div className="flex items-center gap-2">
                 {activeTab === 'filters' && (
                   <>
@@ -205,6 +304,12 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                   <>
                     <ActivityIcon className="w-4 h-4 text-indigo-400" />
                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">WORKSPACE METRICS</h3>
+                  </>
+                )}
+                {activeTab === 'saved' && (
+                  <>
+                    <Bookmark className="w-4 h-4 text-sky-400" />
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">SAVED FILTERS</h3>
                   </>
                 )}
               </div>
@@ -565,6 +670,211 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                 </div>
               )}
 
+              {/* ======================================= */}
+              {/*           TAB 4: SAVED FILTERS          */}
+              {/* ======================================= */}
+              {activeTab === 'saved' && (
+                <div className="space-y-6">
+                  {/* Save current config form */}
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-500">Save Active Filters</h4>
+                    
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Critical Backend bugs, Frontend tags..."
+                        value={newFilterName}
+                        onChange={e => setNewFilterName(e.target.value)}
+                        className="w-full bg-[#1C2326] text-xs text-white placeholder-gray-500 py-2.5 px-3 border border-white/5 rounded-xl focus:outline-none focus:border-sky-500 transition-all"
+                      />
+                      
+                      <button
+                        type="button"
+                        onClick={() => handleSaveCurrentFilter(newFilterName)}
+                        disabled={!newFilterName.trim()}
+                        className="w-full py-2.5 bg-sky-500 hover:bg-sky-450 disabled:bg-sky-500/20 text-black disabled:text-sky-500/40 font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 text-[10px] cursor-pointer"
+                      >
+                        <Bookmark className="w-4 h-4" />
+                        <span>Save Current Profile</span>
+                      </button>
+                    </div>
+
+                    {/* Summary list of loaded parameters in simple horizontal grid patterns */}
+                    {activeFiltersCount > 0 ? (
+                      <div className="py-2.5 px-3 bg-white/[0.02] border border-white/5 rounded-xl space-y-1.5 font-semibold text-[10px] text-gray-500 text-left">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-450 mb-0.5">Parameters to be stored:</p>
+                        {searchTerm && (
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-gray-600 font-bold">Query:</span>
+                            <span className="text-gray-300 truncate font-normal">"{searchTerm}"</span>
+                          </div>
+                        )}
+                        {priorityFilter.length > 0 && (
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-gray-600 font-bold">Priority:</span>
+                            <span className="text-gray-300 truncate font-normal">{priorityFilter.join(', ')}</span>
+                          </div>
+                        )}
+                        {statusFilter.length > 0 && (
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-gray-600 font-bold">Columns:</span>
+                            <span className="text-gray-300 truncate font-normal">{statusFilter.join(', ')}</span>
+                          </div>
+                        )}
+                        {assigneeFilter.length > 0 && (
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-gray-600 font-bold">Assignees:</span>
+                            <span className="text-gray-300 truncate font-normal">
+                              {assignees.filter(u => assigneeFilter.includes(u.id)).map(u => u.name).join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {tagFilter.length > 0 && (
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-gray-600 font-bold">Tags:</span>
+                            <span className="text-gray-300 truncate font-normal">#{tagFilter.join(', #')}</span>
+                          </div>
+                        )}
+                        {(startDate || endDate) && (
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-gray-600 font-bold">Bounds:</span>
+                            <span className="text-gray-300 truncate font-normal">{startDate || '*'} - {endDate || '*'}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-500 italic text-center py-1">
+                        No parameters defined. Saving now defaults to an "All Tasks" profile template.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Saved Templates listing context */}
+                  <div className="space-y-3 pt-5 border-t border-white/5 text-left">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                      Saved Presets {(filterSegments ? filterSegments.length : savedFilters.length) > 0 && `(${filterSegments ? filterSegments.length : savedFilters.length})`}
+                    </h3>
+
+                    <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar">
+                      {filterSegments ? (
+                        filterSegments.length > 0 ? (
+                          filterSegments.map((f) => {
+                            const filtersObj = f.filters || {};
+                            const attributeCount = 
+                              (filtersObj.searchTerm ? 1 : 0) + 
+                              (filtersObj.priorityFilter?.length || 0) + 
+                              (filtersObj.statusFilter?.length || 0) + 
+                              (filtersObj.assigneeFilter?.length || 0) + 
+                              (filtersObj.tagFilter?.length || 0) + 
+                              (filtersObj.startDate || filtersObj.endDate ? 1 : 0);
+
+                            return (
+                              <div 
+                                key={f.id}
+                                onClick={() => handleApplyFilter(f)}
+                                className="group flex flex-col p-3 bg-white/[0.01] hover:bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-all cursor-pointer text-left"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors truncate pr-3">
+                                    {f.name}
+                                  </span>
+                                  
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className="text-[8px] font-mono font-bold bg-[#141B1C] text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/10 shrink-0">
+                                      {attributeCount} attributes
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleDeleteFilter(f.id, e)}
+                                      className="p-1 rounded hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors cursor-pointer"
+                                      title="Delete Preset"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="text-[10px] text-gray-400 mt-2 truncate line-clamp-1 group-hover:text-gray-300 transition-colors font-mono">
+                                  {attributeCount > 0 ? (
+                                    [
+                                      filtersObj.searchTerm ? `query: "${filtersObj.searchTerm}"` : '',
+                                      filtersObj.priorityFilter?.length ? `priority: ${filtersObj.priorityFilter.join(', ')}` : '',
+                                      filtersObj.statusFilter?.length ? `status: ${filtersObj.statusFilter.join(', ')}` : '',
+                                      filtersObj.tagFilter?.length ? `tags: ${filtersObj.tagFilter.join(', ')}` : ''
+                                    ].filter(Boolean).join(' • ')
+                                  ) : (
+                                    "Reset All Filters template"
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="text-[10px] text-gray-500 py-6 text-center italic">
+                            No saved cloud presets. Set workspace filters and save them as profiles for persistent one-click recovery.
+                          </p>
+                        )
+                      ) : savedFilters.length > 0 ? (
+                        savedFilters.map((f) => {
+                          const attributeCount = 
+                            (f.searchTerm ? 1 : 0) + 
+                            (f.priorityFilter?.length || 0) + 
+                            (f.statusFilter?.length || 0) + 
+                            (f.assigneeFilter?.length || 0) + 
+                            (f.tagFilter?.length || 0) + 
+                            (f.startDate || f.endDate ? 1 : 0);
+
+                          return (
+                            <div 
+                              key={f.id}
+                              onClick={() => handleApplyFilter(f)}
+                              className="group flex flex-col p-3 bg-white/[0.01] hover:bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-all cursor-pointer text-left"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors truncate pr-3">
+                                  {f.name}
+                                </span>
+                                
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[8px] font-mono font-bold bg-[#141B1C] text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/10 shrink-0">
+                                    {attributeCount} attributes
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteFilter(f.id, e)}
+                                    className="p-1 rounded hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors cursor-pointer"
+                                    title="Delete Preset"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="text-[10px] text-gray-400 mt-2 truncate line-clamp-1 group-hover:text-gray-300 transition-colors font-mono">
+                                {attributeCount > 0 ? (
+                                  [
+                                    f.searchTerm ? `query: "${f.searchTerm}"` : '',
+                                    f.priorityFilter?.length ? `priority: ${f.priorityFilter.join(', ')}` : '',
+                                    f.statusFilter?.length ? `status: ${f.statusFilter.join(', ')}` : '',
+                                    f.tagFilter?.length ? `tags: ${f.tagFilter.join(', ')}` : ''
+                                  ].filter(Boolean).join(' • ')
+                                ) : (
+                                  "Reset All Filters template"
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-[10px] text-gray-500 py-6 text-center italic">
+                          No saved presets. Set workspace filters and save them as profiles for one-click recovery.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
 
           </div>
@@ -575,22 +885,23 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
           </div>
 
         </div>
-      )}
 
       {/* 2. Permanent Vertical Tab Strip (Android Studio style) */}
-      <div className="w-12 bg-[#0C1012] border-l border-white/5 h-full flex flex-col items-center pt-4 pb-4 gap-6 select-none relative z-50">
+      <div className="w-12 bg-[#0C1012] border-l border-white/5 h-full flex flex-col items-center select-none relative z-50">
         
-        {/* Toggle Panel Button at top */}
-        <button 
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 hover:text-white text-gray-400 cursor-pointer transition-all"
-          title={isOpen ? "Collapse Panel" : "Expand Panel"}
-        >
-          {isOpen ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
-        </button>
+        {/* Toggle Panel Button in symmetrical h-14 header box */}
+        <div className="h-14 w-full border-b border-white/5 flex items-center justify-center flex-shrink-0">
+          <button 
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 hover:text-white text-gray-400 cursor-pointer transition-all"
+            title={isOpen ? "Collapse Panel" : "Expand Panel"}
+          >
+            {isOpen ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
+          </button>
+        </div>
 
-        {/* Divider line */}
-        <div className="w-6 h-px bg-white/10" />
+        {/* Tab buttons underneath */}
+        <div className="flex flex-col items-center pt-6 gap-6 w-full flex-grow">
 
         {/* Tab 1: Filters */}
         <button
@@ -648,10 +959,34 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
           </div>
         </button>
 
+        {/* Tab 4: Saved Filters & Profiles */}
+        <button
+          onClick={() => handleTabClick('saved')}
+          className={`p-2.5 rounded-xl transition-all relative group cursor-pointer ${
+            isOpen && activeTab === 'saved'
+              ? 'bg-sky-500 text-black font-black shadow-[0_0_12px_rgba(14,165,233,0.3)]'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+          title="Saved Filters"
+        >
+          <Bookmark className="w-5 h-5" />
+          {((filterSegments ? filterSegments.length : savedFilters.length) > 0) && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[8px] font-bold text-black font-black">
+              {filterSegments ? filterSegments.length : savedFilters.length}
+            </span>
+          )}
+          {/* Tooltip */}
+          <div className="absolute right-14 top-1/2 -translate-y-1/2 bg-black text-[9px] text-gray-300 font-extrabold uppercase tracking-widest px-2 py-1 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 block">
+            Saved Filters
+          </div>
+        </button>
+
+        </div>
+
         {/* Rotated label vertical header at bottom */}
         <div className="flex-grow flex items-end pb-4">
-          <span className="text-[8px] font-black uppercase text-gray-600 tracking-[0.25em] [writing-mode:vertical-lr] select-none transform rotate-180">
-            {isOpen ? `ACTIVE VIEW: ${activeTab.toUpperCase()}` : 'CONTROL PANEL'}
+          <span className="text-[8px] font-black uppercase text-gray-650 tracking-[0.25em] [writing-mode:vertical-lr] select-none transform rotate-180">
+            {isOpen ? `ACTIVE VIEW: ${activeTab.replace('-', ' ').toUpperCase()}` : 'CONTROL PANEL'}
           </span>
         </div>
       </div>

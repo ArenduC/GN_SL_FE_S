@@ -1,7 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Project, Task, User, TaskPriority, Column } from '../types';
 import { UserAvatar } from './UserAvatar';
 import { DropResult } from 'react-beautiful-dnd';
+import { Settings, ChevronDown } from 'lucide-react';
+
+const ALL_COLUMNS = [
+  { id: 'ticketId', label: 'ID' },
+  { id: 'title', label: 'Task Title' },
+  { id: 'status', label: 'Status' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'assignee', label: 'Assignee' },
+  { id: 'dueDate', label: 'Due Date' },
+  { id: 'creator', label: 'Creator' },
+  { id: 'created', label: 'Created' },
+  { id: 'lastUpdate', label: 'Last Update' },
+  { id: 'assigned', label: 'Assigned' },
+  { id: 'assignedBy', label: 'Assigned By' },
+];
 
 interface TaskTableViewProps {
   project: Project;
@@ -12,17 +27,23 @@ interface TaskTableViewProps {
   onTaskClick: (task: Task) => void;
 }
 
-const priorityStyles: Record<TaskPriority, string> = {
-  [TaskPriority.URGENT]: 'bg-red-400 border-red-400 text-black',
-  [TaskPriority.HIGH]: 'bg-yellow-400 border-yellow-400 text-black',
-  [TaskPriority.MEDIUM]: 'bg-blue-400 border-blue-400 text-white',
-  [TaskPriority.LOW]: 'bg-gray-500 border-gray-500 text-white',
-};
-
 export const TaskTableView: React.FC<TaskTableViewProps> = ({ project, tasks, users, onUpdateTask, onDragEnd, onTaskClick }) => {
   const projectMembers = project.members.map(id => users.find(u => u.id === id)).filter((u): u is User => !!u);
-  // FIX: Cast Object.values to the correct type to avoid type inference issues.
   const columns = Object.values(project?.board?.columns || {}) as Column[];
+
+  const [showColPicker, setShowColPicker] = useState(false);
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('table_visible_columns_v2');
+      return saved ? JSON.parse(saved) : ALL_COLUMNS.map(c => c.id);
+    } catch {
+      return ALL_COLUMNS.map(c => c.id);
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('table_visible_columns_v2', JSON.stringify(visibleColumnIds));
+  }, [visibleColumnIds]);
 
   const handleStatusChange = (task: Task, newColumnId: string) => {
     const sourceColumn = columns.find(c => c.taskIds.includes(task.id));
@@ -61,45 +82,112 @@ export const TaskTableView: React.FC<TaskTableViewProps> = ({ project, tasks, us
     return columns.find(c => c.taskIds.includes(taskId))?.id;
   };
 
-  const getStatusStyle = (columnId: string | undefined): string => {
+  const getStatusDotColor = (columnId: string | undefined): string => {
     const column = columns.find(c => c.id === columnId);
     const title = (column?.title || '').toLowerCase();
-    if (title.includes('done') || title.includes('complete')) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-    if (title.includes('progress') || title.includes('current')) return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-    if (title.includes('review') || title.includes('verify')) return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-    return 'bg-white/5 text-gray-400 border-white/5';
+    if (title.includes('done') || title.includes('complete')) return 'bg-emerald-500';
+    if (title.includes('progress') || title.includes('current')) return 'bg-blue-500';
+    if (title.includes('review') || title.includes('verify')) return 'bg-purple-500';
+    return 'bg-gray-500';
   };
 
-  const innerPriorityStyles: Record<TaskPriority, string> = {
-    [TaskPriority.URGENT]: 'bg-red-500/10 text-red-400 border-red-500/20 font-bold',
-    [TaskPriority.HIGH]: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    [TaskPriority.MEDIUM]: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    [TaskPriority.LOW]: 'bg-white/5 text-gray-500 border-white/5',
+  const getPriorityTextColor = (priority: TaskPriority): string => {
+    if (priority === TaskPriority.URGENT) return 'text-red-400 font-semibold';
+    if (priority === TaskPriority.HIGH) return 'text-orange-400';
+    if (priority === TaskPriority.MEDIUM) return 'text-blue-400';
+    return 'text-gray-400';
   };
 
   return (
-    <div className="bg-[#131C1B]/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/5 overflow-hidden">
-      <div className="overflow-x-auto custom-scrollbar w-full">
-        <table className="w-full text-left table-fixed min-w-[1200px]">
-          <thead className="bg-white/5">
-            <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 border-b border-white/5">
-              <th className="px-5 py-4 w-24">ID</th>
-              <th className="px-5 py-4 w-60">Task Node</th>
-              <th className="px-5 py-4 w-32 font-bold">Status</th>
-              <th className="px-5 py-4 w-28">Priority</th>
-              <th className="px-5 py-4 w-44">Assignee</th>
-              <th className="px-5 py-4 w-44">Due Date</th>
-              <th className="px-5 py-4 w-40">Reporter / Creator</th>
-              <th className="px-5 py-4 w-32">Created At</th>
-              <th className="px-5 py-4 w-44">Last Update By</th>
-              <th className="px-5 py-4 w-32">Assigned At</th>
-              <th className="px-5 py-4 w-40">Assigned By</th>
+    <div className="w-full bg-transparent overflow-hidden">
+      {/* Table Preferences Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5 mb-4 relative z-30">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400">Project Workspace Grid</span>
+          <p className="text-[11px] text-gray-500 mt-0.5">Customize your landscape layout. Double-click or click cards to edit details.</p>
+        </div>
+
+        {/* Dynamic Column Picker Widget */}
+        <div className="relative">
+          <button 
+            type="button"
+            onClick={() => setShowColPicker(!showColPicker)}
+            className="p-2 px-3.5 bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer"
+          >
+            <Settings className="w-3.5 h-3.5 text-emerald-450 animate-pulse" />
+            <span>Visible Columns</span>
+            <ChevronDown className="w-3 h-3 text-gray-500 transition-transform duration-200" style={{ transform: showColPicker ? 'rotate(180deg)' : 'none' }} />
+          </button>
+          
+          {showColPicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowColPicker(false)} />
+              <div className="absolute right-0 mt-2 w-56 bg-[#0E1314]/98 backdrop-blur border border-white/10 rounded-2xl shadow-2xl p-4 z-50 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#5EEAD4]">Grid Columns</span>
+                  <button 
+                    type="button"
+                    onClick={() => setVisibleColumnIds(ALL_COLUMNS.map(c => c.id))}
+                    className="text-[8px] font-black text-gray-500 hover:text-white uppercase tracking-widest transition-colors cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                </div>
+                <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                  {ALL_COLUMNS.map(col => {
+                    const isChecked = visibleColumnIds.includes(col.id);
+                    return (
+                      <label key={col.id} className="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 cursor-pointer text-[10.5px] text-gray-400 hover:text-white group transition-colors">
+                        <span className="font-bold flex items-center gap-2.5">
+                          <input 
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                if (visibleColumnIds.length > 2) { // keep at least 2 columns visible
+                                  setVisibleColumnIds(visibleColumnIds.filter(id => id !== col.id));
+                                }
+                              } else {
+                                setVisibleColumnIds([...visibleColumnIds, col.id]);
+                              }
+                            }}
+                            className="w-3.5 h-3.5 rounded border-white/10 bg-black/40 text-emerald-500 focus:ring-emerald-500/20"
+                          />
+                          {col.label}
+                        </span>
+                        <span className="text-[7px] font-mono text-gray-600 group-hover:text-gray-450 font-bold uppercase tracking-wider">
+                          {isChecked ? 'ON' : 'OFF'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto custom-scrollbar w-full border border-white/5 rounded-2xl bg-[#090D0E]/40">
+        <table className="w-full text-left border-collapse min-w-[1500px] table-fixed">
+          <thead>
+            <tr className="border-b border-white/5 text-gray-500 font-bold text-[10px] uppercase tracking-widest bg-white/[0.01]">
+              {visibleColumnIds.includes('ticketId') && <th className="py-3.5 px-4 w-24 whitespace-nowrap">ID</th>}
+              {visibleColumnIds.includes('title') && <th className="py-3.5 px-4 w-[420px] whitespace-nowrap">Task Title</th>}
+              {visibleColumnIds.includes('status') && <th className="py-3.5 px-4 w-44 whitespace-nowrap">Status</th>}
+              {visibleColumnIds.includes('priority') && <th className="py-3.5 px-4 w-36 whitespace-nowrap">Priority</th>}
+              {visibleColumnIds.includes('assignee') && <th className="py-3.5 px-4 w-52 whitespace-nowrap">Assignee</th>}
+              {visibleColumnIds.includes('dueDate') && <th className="py-3.5 px-4 w-44 whitespace-nowrap">Due Date</th>}
+              {visibleColumnIds.includes('creator') && <th className="py-3.5 px-4 w-44 whitespace-nowrap">Creator</th>}
+              {visibleColumnIds.includes('created') && <th className="py-3.5 px-4 w-36 whitespace-nowrap">Created</th>}
+              {visibleColumnIds.includes('lastUpdate') && <th className="py-3.5 px-4 w-56 whitespace-nowrap">Last Update</th>}
+              {visibleColumnIds.includes('assigned') && <th className="py-3.5 px-4 w-36 whitespace-nowrap">Assigned</th>}
+              {visibleColumnIds.includes('assignedBy') && <th className="py-3.5 px-4 w-44 whitespace-nowrap">Assigned By</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {tasks.map(task => {
               const currentColumnId = getTaskColumnId(task.id);
-              
               const creatorName = users.find(u => u.id === task.creatorId)?.name || 'System';
               const createdDate = new Date(task.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
               
@@ -118,88 +206,104 @@ export const TaskTableView: React.FC<TaskTableViewProps> = ({ project, tasks, us
                 : (task.assignee ? createdDate : 'N/A');
 
               return (
-                <tr key={task.id} className="text-[11px] text-white hover:bg-white/[0.03] transition-all group">
-                  <td className="px-5 py-3 font-mono text-emerald-500/60 font-bold tracking-tight">
-                    {task.ticketId}
-                  </td>
-                  <td className="px-5 py-3 overflow-hidden">
-                    <button onClick={() => onTaskClick(task)} className="font-bold text-white hover:text-emerald-400 transition-colors text-left truncate w-full">
-                      {task.title}
-                    </button>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className={`inline-flex items-center rounded-md border px-2 py-0.5 w-full ${getStatusStyle(currentColumnId)}`}>
-                      <select
-                        value={currentColumnId || ''}
-                        onChange={e => handleStatusChange(task, e.target.value)}
-                        className="bg-transparent border-none text-[8px] font-black uppercase tracking-widest focus:ring-0 p-0 w-full cursor-pointer appearance-none"
+                <tr key={task.id} className="text-xs text-gray-300 hover:bg-white/[0.025] transition-colors">
+                  {visibleColumnIds.includes('ticketId') && (
+                    <td className="py-3 px-4 font-mono text-emerald-500/80 font-semibold whitespace-nowrap truncate">
+                      {task.ticketId}
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('title') && (
+                    <td className="py-3 px-4 whitespace-nowrap truncate max-w-[420px]" title={task.title}>
+                      <button 
+                        onClick={() => onTaskClick(task)} 
+                        className="font-semibold text-white hover:text-emerald-400 text-left truncate w-full block transition-colors outline-none focus:outline-none cursor-pointer"
                       >
-                        {columns.map(col => (
-                          <option key={col.id} value={col.id} className="bg-[#1C2326]">{col.title}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                      <div className={`inline-block border rounded-md px-2 py-0.5 w-full ${innerPriorityStyles[task.priority]}`}>
+                        {task.title}
+                      </button>
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('status') && (
+                    <td className="py-3 px-4 whitespace-nowrap truncate">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getStatusDotColor(currentColumnId)}`} />
                         <select
-                            value={task.priority}
-                            onChange={e => handlePriorityChange(task, e.target.value as TaskPriority)}
-                            className="bg-transparent border-none text-[8px] font-black uppercase tracking-widest focus:ring-0 p-0 w-full cursor-pointer appearance-none"
+                          value={currentColumnId || ''}
+                          onChange={e => handleStatusChange(task, e.target.value)}
+                          className="bg-transparent border-none text-xs text-gray-300 hover:text-white focus:ring-0 p-0 cursor-pointer appearance-none outline-none font-medium truncate max-w-[150px]"
                         >
-                            {Object.values(TaskPriority).map(p => (
-                            <option key={p} value={p} className="bg-[#1C2326] text-white font-normal">{p}</option>
-                            ))}
+                          {columns.map(col => (
+                            <option key={col.id} value={col.id} className="bg-[#0B0E0F] text-gray-300">{col.title}</option>
+                          ))}
                         </select>
                       </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2 bg-white/5 rounded-md p-1 pr-3">
-                      <UserAvatar user={task.assignee} className="w-5 h-5 ring-1 ring-white/10" />
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('priority') && (
+                    <td className="py-3 px-4 whitespace-nowrap truncate">
                       <select
-                        value={task.assignee?.id || ''}
-                        onChange={e => handleAssigneeChange(task, e.target.value)}
-                        className="bg-transparent border-none text-[9px] text-gray-400 hover:text-white focus:ring-0 p-0 w-full cursor-pointer appearance-none truncate"
+                        value={task.priority}
+                        onChange={e => handlePriorityChange(task, e.target.value as TaskPriority)}
+                        className={`bg-transparent border-none text-xs focus:ring-0 p-0 cursor-pointer appearance-none outline-none truncate max-w-[100px] ${getPriorityTextColor(task.priority)}`}
                       >
-                        <option value="" className="bg-[#1C2326]">Unassigned</option>
-                        {projectMembers.map(m => (
-                          <option key={m.id} value={m.id} className="bg-[#1C2326]">{m.name}</option>
+                        {Object.values(TaskPriority).map(p => (
+                          <option key={p} value={p} className="bg-[#0B0E0F] text-gray-300 font-normal">{p}</option>
                         ))}
                       </select>
-                    </div>
-                  </td>
-                  {/* Due Date interactive picker */}
-                  <td className="px-5 py-3">
-                    <input
-                      type="date"
-                      value={task.dueDate || ''}
-                      onChange={e => handleDueDateChange(task, e.target.value)}
-                      className="bg-white/5 text-gray-400 hover:text-white border-none rounded-md px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-500 focus:outline-none w-full cursor-pointer font-mono"
-                    />
-                  </td>
-                  {/* Created By / Reporter */}
-                  <td className="px-5 py-3">
-                    <span className="font-semibold text-gray-300">{creatorName}</span>
-                  </td>
-                  {/* Created At */}
-                  <td className="px-5 py-3 text-gray-500 font-mono">
-                    {createdDate}
-                  </td>
-                  {/* Last Update By / Updated At */}
-                  <td className="px-5 py-3">
-                    <div className="flex flex-col">
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('assignee') && (
+                    <td className="py-3 px-4 whitespace-nowrap truncate">
+                      <div className="flex items-center gap-2">
+                        <UserAvatar user={task.assignee} className="w-5 h-5 flex-shrink-0" />
+                        <select
+                          value={task.assignee?.id || ''}
+                          onChange={e => handleAssigneeChange(task, e.target.value)}
+                          className="bg-transparent border-none text-xs text-gray-300 hover:text-white focus:ring-0 p-0 cursor-pointer appearance-none outline-none truncate max-w-[150px]"
+                        >
+                          <option value="" className="bg-[#0B0E0F] text-gray-500">Unassigned</option>
+                          {projectMembers.map(m => (
+                            <option key={m.id} value={m.id} className="bg-[#0B0E0F] text-gray-300">{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('dueDate') && (
+                    <td className="py-3 px-4 whitespace-nowrap truncate">
+                      <input
+                        type="date"
+                        value={task.dueDate || ''}
+                        onChange={e => handleDueDateChange(task, e.target.value)}
+                        className="bg-transparent text-gray-300 hover:text-white border-none p-0 text-xs focus:ring-0 focus:outline-none w-full cursor-pointer font-mono"
+                      />
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('creator') && (
+                    <td className="py-3 px-4 text-gray-400 whitespace-nowrap truncate max-w-[150px]" title={creatorName}>
+                      {creatorName}
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('created') && (
+                    <td className="py-3 px-4 text-gray-500 font-mono whitespace-nowrap truncate text-[11px]">
+                      {createdDate}
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('lastUpdate') && (
+                    <td className="py-3 px-4 text-gray-450 whitespace-nowrap truncate max-w-[200px]" title={`${lastUpdateBy} (${lastUpdateAt})`}>
                       <span className="font-semibold text-gray-300">{lastUpdateBy}</span>
-                      <span className="text-[9px] text-gray-500 font-mono mt-0.5">{lastUpdateAt}</span>
-                    </div>
-                  </td>
-                  {/* Assigned At */}
-                  <td className="px-5 py-3 text-gray-500 font-mono">
-                    {assignedAt}
-                  </td>
-                  {/* Assigned By */}
-                  <td className="px-5 py-3 text-gray-400">
-                    {assignedBy}
-                  </td>
+                      <span className="text-gray-500 font-mono text-[10px] ml-1.5">{lastUpdateAt}</span>
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('assigned') && (
+                    <td className="py-3 px-4 text-gray-500 font-mono whitespace-nowrap truncate text-[11px]">
+                      {assignedAt}
+                    </td>
+                  )}
+                  {visibleColumnIds.includes('assignedBy') && (
+                    <td className="py-3 px-4 text-gray-400 whitespace-nowrap truncate max-w-[150px]" title={assignedBy}>
+                      {assignedBy}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -207,8 +311,8 @@ export const TaskTableView: React.FC<TaskTableViewProps> = ({ project, tasks, us
         </table>
       </div>
       {tasks.length === 0 && (
-        <div className="text-center py-20 text-gray-600 font-mono text-xs italic uppercase tracking-widest">
-            NO DATA IN MATRIX
+        <div className="text-center py-12 text-gray-500 font-mono text-xs italic uppercase tracking-wider">
+          No records in table
         </div>
       )}
     </div>
