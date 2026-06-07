@@ -51,7 +51,7 @@ interface KanbanBoardProps {
   isChatOpen: boolean;
   onCloseChat: () => void;
   chatMessages: ChatMessage[];
-  onSendMessage: (text: string) => Promise<void>;
+  onSendMessage: (projectId: string, text: string) => Promise<void>;
   onTaskClick: (task: Task) => void;
   addProjectLink: (title: string, url: string) => Promise<void>;
   deleteProjectLink: (linkId: string) => Promise<void>;

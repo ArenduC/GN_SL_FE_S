@@ -944,7 +944,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                     addTask={(td) => addTask(project.id, td, currentUser.id)} deleteTask={(tid, cid) => deleteTask(project.id, tid, cid)}
                     duplicateTask={(tid) => duplicateTask(project.id, tid)}
                     addColumn={(t) => addColumn(project.id, t)} deleteColumn={(cid) => deleteColumn(project.id, cid)} isChatOpen={isChatOpen} onCloseChat={() => setIsChatOpen(false)} chatMessages={project.chatMessages}
-                    onSendMessage={(txt) => sendChatMessage(project.id, txt, currentUser)} onTaskClick={handleTaskClick} addProjectLink={(t, u) => addProjectLink(project.id, t, u, currentUser.id)}
+                    onSendMessage={(projectId, txt) => sendChatMessage(projectId, txt, currentUser)} onTaskClick={handleTaskClick} addProjectLink={(t, u) => addProjectLink(project.id, t, u, currentUser.id)}
                     deleteProjectLink={deleteProjectLink} 
                     addTasksBatch={(ts, sid) => addTasksBatch(project.id, ts, sid)} addSprint={(sd) => addSprint(project.id, sd)} updateSprint={(sid, up) => updateSprint(project.id, sid, up)}
                     deleteSprint={(sid) => deleteSprint(project.id, sid)} bulkUpdateTaskSprint={bulkUpdateTaskSprint} completeSprint={completeSprint}

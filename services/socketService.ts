@@ -5,7 +5,7 @@ let currentProjectId: string | null = null;
 let currentToken: string | null = null;
 
 export const getSocketUrl = (): string => {
-    return 'https://finite-creatures-adapters-psp.trycloudflare.com';
+    return 'https://hamburg-mounting-mountain-thomson.trycloudflare.com';
 };
 
 export const getSocket = (): Socket | null => {
