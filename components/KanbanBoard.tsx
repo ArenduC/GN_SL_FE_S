@@ -32,6 +32,7 @@ import { useConfirmation } from '../App';
 
 interface KanbanBoardProps {
   project: Project;
+  projects?: Project[];
   currentUser: User;
   users: User[];
   onlineUsers: Set<string>;
@@ -194,7 +195,7 @@ const viewOptions = [
 ];
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ 
-    project, currentUser, users, onlineUsers, aiFeaturesEnabled,
+    project, projects = [], currentUser, users, onlineUsers, aiFeaturesEnabled,
     projectView, setProjectView,
     onDragEnd, 
     updateTask, addSubtasks, addComment, addAiTask, addTask, deleteTask, addColumn, 
@@ -817,8 +818,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
        {isChatOpen && (
         <ProjectChat 
             project={project}
+            projects={projects}
             users={users}
-            messages={chatMessages}
             currentUser={currentUser}
             onlineUsers={onlineUsers}
             onClose={onCloseChat}

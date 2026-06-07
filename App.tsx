@@ -935,7 +935,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 
                 {activeProjectId && project ? (
                   <KanbanBoard 
-                    project={project} currentUser={currentUser} users={Object.values(state.users || {})} onlineUsers={onlineUsers} aiFeaturesEnabled={featureFlags.ai}
+                    project={project} projects={Object.values(state.projects || {})} currentUser={currentUser} users={Object.values(state.users || {})} onlineUsers={onlineUsers} aiFeaturesEnabled={featureFlags.ai}
                     projectView={projectView} setProjectView={setProjectView}
                     isControlDeckOpen={isControlDeckOpen}
                     setIsControlDeckOpen={setIsControlDeckOpen}

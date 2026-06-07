@@ -6,12 +6,12 @@ import { JsonSyntaxHighlighter } from './JsonSyntaxHighlighter';
 
 interface ProjectChatProps {
     project: Project;
+    projects: Project[];
     users: User[];
-    messages: ChatMessage[];
     currentUser: User;
     onlineUsers: Set<string>;
     onClose: () => void;
-    onSendMessage: (text: string) => Promise<void>;
+    onSendMessage: (projectId: string, text: string) => Promise<void>;
 }
 
 const formatDateSeparator = (dateString: string) => {
@@ -181,8 +181,8 @@ const ChatBubble: React.FC<{
 
 export const ProjectChat: React.FC<ProjectChatProps> = ({ 
     project, 
+    projects = [],
     users, 
-    messages, 
     currentUser, 
     onlineUsers, 
     onClose, 
@@ -193,6 +193,20 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     
+    const [activeChatProjectId, setActiveChatProjectId] = useState(project.id);
+
+    useEffect(() => {
+        setActiveChatProjectId(project.id);
+    }, [project.id]);
+
+    const activeProjectObj = useMemo(() => {
+        return (projects || []).find(p => p.id === activeChatProjectId) || project;
+    }, [projects, activeChatProjectId, project]);
+
+    const messagesToShow = useMemo(() => {
+        return activeProjectObj.chatMessages || [];
+    }, [activeProjectObj.chatMessages]);
+
     const [suggestionState, setSuggestionState] = useState<{ show: boolean; type: 'user' | null; query: string }>({ 
         show: false, 
         type: null, 
@@ -201,8 +215,8 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     const [activeIndex, setActiveIndex] = useState(0);
 
     const projectMembers = useMemo(() => 
-        project.members.map(id => users.find(u => u.id === id)).filter((u): u is User => !!u), 
-        [project.members, users]
+        (activeProjectObj.members || []).map(id => users.find(u => u.id === id)).filter((u): u is User => !!u), 
+        [activeProjectObj.members, users]
     );
 
     const filteredSuggestions = useMemo(() => {
@@ -229,12 +243,12 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     useEffect(() => {
         const timer = setTimeout(() => scrollToBottom(false), 50);
         return () => clearTimeout(timer);
-    }, []);
+    }, [activeChatProjectId]);
 
     // Smooth scroll when messages arrive
     useEffect(() => {
         scrollToBottom(true);
-    }, [messages]);
+    }, [messagesToShow]);
 
     const handleNewMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const text = e.target.value;
@@ -294,7 +308,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     
     const handleSubmit = async () => {
         if (newMessage.trim()) {
-            await onSendMessage(newMessage.trim());
+            await onSendMessage(activeChatProjectId, newMessage.trim());
             setNewMessage('');
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
@@ -303,131 +317,177 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-[#0D1112]/98 backdrop-blur-md z-[100] flex justify-center">
-            {/* Minimal SaaS contained center column container */}
-            <div className="w-full max-w-4xl h-full bg-[#0E1314] md:border-x border-white/5 flex flex-col shadow-2xl overflow-hidden relative">
-                
-                {/* Header matching minimal clean SaaS designs */}
-                <header className="h-16 flex-shrink-0 border-b border-white/5 bg-[#0E1314]/80 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-30">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
-                            <MessageSquareIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Project Pipeline Chat</h3>
-                            <p className="text-[10px] text-gray-500 font-medium">
-                                Connected to <span className="text-gray-300 font-bold">{project.name}</span> context
-                            </p>
+        <div className="fixed inset-0 bg-[#0E1314] z-[100] flex flex-row overflow-hidden">
+            
+            {/* Left Sidebar: Project listing */}
+            <div className="w-16 md:w-64 border-r border-white/5 flex flex-col h-full bg-[#0B0E0F] shrink-0">
+                    <div className="h-16 flex-shrink-0 border-b border-white/5 px-4 flex items-center justify-center md:justify-between bg-[#0E1314]/50">
+                        <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-white hidden md:block">Select Project</span>
+                        <div className="p-1 rounded-md bg-white/5 text-gray-400 md:hidden" title="Switch Project Chat">
+                            <MessageSquareIcon className="w-4 h-4 text-sky-400" />
                         </div>
                     </div>
                     
-                    <button 
-                        onClick={onClose} 
-                        className="p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
-                        title="Close Chat"
-                        type="button"
-                    >
-                        <XIcon className="w-4 h-4" />
-                    </button>
-                </header>
-
-                {/* Message display listing viewport */}
-                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto custom-scrollbar flex flex-col pt-2 pb-6">
-                    {messages.length === 0 ? (
-                        <div className="flex-grow flex flex-col items-center justify-center py-20 px-6 text-center">
-                            <div className="w-10 h-10 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-gray-500 mb-4">
-                                <MessageSquareIcon className="w-5 h-5" />
-                            </div>
-                            <h4 className="text-xs font-bold text-gray-350 uppercase tracking-widest">No Context Signals</h4>
-                            <p className="text-[11px] text-gray-500 max-w-sm mt-1 leading-relaxed">
-                                Share design blueprints, JSON updates, file codes, or mention members to stream information.
-                            </p>
-                        </div>
-                    ) : (
-                        messages.map((msg, index) => {
-                            const currentDate = new Date(msg.createdAt).toDateString();
-                            const prevDate = index > 0 ? new Date(messages[index - 1].createdAt).toDateString() : null;
-                            const showDate = currentDate !== prevDate;
-
+                    <div className="flex-grow overflow-y-auto custom-scrollbar p-2 space-y-1.5 bg-[#090D0E]/30">
+                        {(projects || []).map((proj) => {
+                            const isActive = proj.id === activeChatProjectId;
                             return (
-                                <React.Fragment key={msg.id}>
-                                    {showDate && (
-                                        <div className="flex justify-center my-6 sticky top-2 z-10 pointer-events-none">
-                                            <span className="bg-[#141B1C]/90 backdrop-blur-md border border-white/5 text-gray-400 text-[9px] px-3 py-1 rounded-full font-black tracking-widest uppercase shadow-md">
-                                                {formatDateSeparator(msg.createdAt)}
-                                            </span>
-                                        </div>
+                                <button
+                                    key={proj.id}
+                                    onClick={() => setActiveChatProjectId(proj.id)}
+                                    className={`w-full text-left p-2 md:p-3 rounded-xl transition-all flex items-center gap-3 cursor-pointer select-none border group relative ${
+                                        isActive 
+                                            ? 'bg-sky-500/10 border-sky-500/25 text-white' 
+                                            : 'hover:bg-white/[0.02] border-transparent text-gray-400 hover:text-gray-200'
+                                    }`}
+                                    title={proj.name}
+                                    type="button"
+                                >
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 transition-transform group-hover:scale-105 ${
+                                        isActive ? 'bg-sky-500/20 text-sky-400' : 'bg-white/5 text-gray-400'
+                                    }`}>
+                                        {proj.name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0 flex-grow hidden md:block text-left">
+                                        <h4 className="text-xs font-bold truncate">{proj.name}</h4>
+                                        <p className="text-[9px] text-gray-500 truncate mt-0.5">
+                                            {proj.members?.length || 0} members · {proj.chatMessages?.length || 0} msgs
+                                        </p>
+                                    </div>
+                                    
+                                    {/* Active project dot on mobile */}
+                                    {isActive && (
+                                        <div className="absolute top-1/2 -translate-y-1/2 right-2 w-1.5 h-1.5 bg-sky-400 rounded-full md:hidden" />
                                     )}
-                                    <ChatBubble 
-                                        message={msg} 
-                                        isCurrentUser={msg.author.id === currentUser.id} 
-                                        isOnline={onlineUsers.has(msg.author.id)}
-                                        users={projectMembers}
-                                    />
-                                </React.Fragment>
+                                </button>
                             );
-                        })
-                    )}
-                    <div ref={messagesEndRef} className="h-px w-full shrink-0" />
+                        })}
+                    </div>
                 </div>
 
-                {/* Footer Message Input Section */}
-                <footer className="p-4 sm:p-6 border-t border-white/5 bg-[#0E1314] flex-shrink-0 relative">
-                    {suggestionState.show && filteredSuggestions.length > 0 && (
-                        <div className="absolute bottom-full left-4 sm:left-6 right-4 sm:right-6 mb-2 bg-[#141B1C] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar z-50 overflow-hidden">
-                            <ul>
-                                {filteredSuggestions.map((item, index) => (
-                                    <li 
-                                        key={item.id} 
-                                        onClick={() => handleSuggestionSelect(item)} 
-                                        onMouseEnter={() => setActiveIndex(index)}
-                                        className={`px-3.5 py-2.5 cursor-pointer flex items-center justify-between transition-colors ${
-                                            index === activeIndex ? 'bg-white/5 text-sky-400' : 'text-gray-300'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                            <UserAvatar user={item} className="w-5 h-5 flex-shrink-0 text-[10px]" />
-                                            <span className="text-xs truncate font-bold">{item.name}</span>
-                                        </div>
-                                        <span className="text-[10px] text-gray-500 font-mono">@{item.name.toLowerCase().replace(/\s+/g, '')}</span>
-                                    </li>
-                                ))}
-                            </ul>
+                {/* Right Container: Active Chat View */}
+                <div className="flex-grow h-full flex flex-col overflow-hidden relative">
+                    
+                    {/* Header matching minimal clean SaaS designs */}
+                    <header className="h-16 flex-shrink-0 border-b border-white/5 bg-[#0E1314]/80 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-30">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
+                                <MessageSquareIcon className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white truncate">Project Pipeline Chat</h3>
+                                <p className="text-[10px] text-gray-500 font-medium truncate">
+                                    Connected to <span className="text-gray-300 font-bold">{activeProjectObj.name}</span> context
+                                </p>
+                            </div>
                         </div>
-                    )}
-
-                    <form 
-                        onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
-                        className="flex items-end gap-2.5 bg-[#0D1112] border border-white/10 rounded-2xl p-2 focus-within:border-sky-500/40 transition-colors"
-                    >
-                        <textarea
-                            ref={textareaRef}
-                            value={newMessage}
-                            onChange={handleNewMessageChange}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Message team, paste JSON, write details..."
-                            className="w-full bg-transparent px-3 text-xs text-white placeholder-gray-500 focus:outline-none resize-none py-1.5 custom-scrollbar"
-                            rows={1}
-                            style={{ height: 'auto', maxHeight: '120px' }}
-                            onInput={(e) => {
-                                const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = `${target.scrollHeight}px`;
-                            }}
-                        />
-
+                        
                         <button 
-                            type="submit" 
-                            disabled={!newMessage.trim()}
-                            className="p-2.5 bg-white disabled:bg-white/10 hover:bg-gray-200 text-black disabled:text-gray-600 rounded-xl transition-all flex-shrink-0 flex items-center justify-center cursor-pointer"
-                            aria-label="Send message"
+                            onClick={onClose} 
+                            className="p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer block"
+                            title="Close Chat"
+                            type="button"
                         >
-                            <SendIcon className="w-4 h-4"/>
+                            <XIcon className="w-4 h-4" />
                         </button>
-                    </form>
-                </footer>
+                    </header>
 
-            </div>
+                    {/* Message display listing viewport */}
+                    <div ref={scrollContainerRef} className="flex-grow overflow-y-auto custom-scrollbar flex flex-col pt-2 pb-6">
+                        {messagesToShow.length === 0 ? (
+                            <div className="flex-grow flex flex-col items-center justify-center py-20 px-6 text-center">
+                                <div className="w-10 h-10 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-gray-500 mb-4">
+                                    <MessageSquareIcon className="w-5 h-5" />
+                                </div>
+                                <h4 className="text-xs font-bold text-gray-350 uppercase tracking-widest">No Context Signals</h4>
+                                <p className="text-[11px] text-gray-500 max-w-sm mt-1 leading-relaxed">
+                                    Share design blueprints, JSON updates, file codes, or mention members to stream information.
+                                </p>
+                            </div>
+                        ) : (
+                            messagesToShow.map((msg, index) => {
+                                const currentDate = new Date(msg.createdAt).toDateString();
+                                const prevDate = index > 0 ? new Date(messagesToShow[index - 1].createdAt).toDateString() : null;
+                                const showDate = currentDate !== prevDate;
+
+                                return (
+                                    <React.Fragment key={msg.id}>
+                                        {showDate && (
+                                            <div className="flex justify-center my-6 sticky top-2 z-10 pointer-events-none">
+                                                <span className="bg-[#141B1C]/90 backdrop-blur-md border border-white/5 text-gray-400 text-[9px] px-3 py-1 rounded-full font-black tracking-widest uppercase shadow-md">
+                                                    {formatDateSeparator(msg.createdAt)}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <ChatBubble 
+                                            message={msg} 
+                                            isCurrentUser={msg.author.id === currentUser.id} 
+                                            isOnline={onlineUsers.has(msg.author.id)}
+                                            users={projectMembers}
+                                        />
+                                    </React.Fragment>
+                                );
+                            })
+                        )}
+                        <div ref={messagesEndRef} className="h-px w-full shrink-0" />
+                    </div>
+
+                    {/* Footer Message Input Section */}
+                    <footer className="p-4 sm:p-6 border-t border-white/5 bg-[#0E1314] flex-shrink-0 relative">
+                        {suggestionState.show && filteredSuggestions.length > 0 && (
+                            <div className="absolute bottom-full left-4 sm:left-6 right-4 sm:right-6 mb-2 bg-[#141B1C] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar z-50 overflow-hidden">
+                                <ul>
+                                    {filteredSuggestions.map((item, index) => (
+                                        <li 
+                                            key={item.id} 
+                                            onClick={() => handleSuggestionSelect(item)} 
+                                            onMouseEnter={() => setActiveIndex(index)}
+                                            className={`px-3.5 py-2.5 cursor-pointer flex items-center justify-between transition-colors ${
+                                                index === activeIndex ? 'bg-white/5 text-sky-400' : 'text-gray-300'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <UserAvatar user={item} className="w-5 h-5 flex-shrink-0 text-[10px]" />
+                                                <span className="text-xs truncate font-bold">{item.name}</span>
+                                            </div>
+                                            <span className="text-[10px] text-gray-500 font-mono">@{item.name.toLowerCase().replace(/\s+/g, '')}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        <form 
+                            onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
+                            className="flex items-end gap-2.5 bg-[#0D1112] border border-white/10 rounded-2xl p-2 focus-within:border-sky-500/40 transition-colors"
+                        >
+                            <textarea
+                                ref={textareaRef}
+                                value={newMessage}
+                                onChange={handleNewMessageChange}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Message team, paste JSON, write details..."
+                                className="w-full bg-transparent px-3 text-xs text-white placeholder-gray-500 focus:outline-none resize-none py-1.5 custom-scrollbar"
+                                rows={1}
+                                style={{ height: 'auto', maxHeight: '120px' }}
+                                onInput={(e) => {
+                                    const target = e.target as HTMLTextAreaElement;
+                                    target.style.height = 'auto';
+                                    target.style.height = `${target.scrollHeight}px`;
+                                }}
+                            />
+
+                            <button 
+                                type="submit" 
+                                disabled={!newMessage.trim()}
+                                className="p-2.5 bg-white disabled:bg-white/10 hover:bg-gray-200 text-black disabled:text-gray-600 rounded-xl transition-all flex-shrink-0 flex items-center justify-center cursor-pointer"
+                                aria-label="Send message"
+                            >
+                                <SendIcon className="w-4 h-4"/>
+                            </button>
+                        </form>
+                    </footer>
+                </div>
         </div>
     );
 };
