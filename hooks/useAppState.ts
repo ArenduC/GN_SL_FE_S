@@ -147,11 +147,21 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
 
       if (!targetProjectId) return;
 
-      const authorId = payload.senderId || payload.sender_id || payload.author_id;
-      const messageText = payload.message || payload.text;
+      // Extremely defensive parsing for user/sender identifier
+      const authorId = payload.senderId || 
+                       payload.sender_id || 
+                       payload.author_id || 
+                       payload.authorId || 
+                       payload.userId || 
+                       payload.user_id || 
+                       (payload.sender && typeof payload.sender === 'object' ? payload.sender.id : null) ||
+                       (payload.author && typeof payload.author === 'object' ? payload.author.id : null) || 
+                       'unknown-author';
+
+      const messageText = payload.message || payload.text || payload.content;
       const createdAt = payload.createdAt || payload.created_at || new Date().toISOString();
 
-      if (!authorId || !messageText) return;
+      if (!messageText) return;
 
       setState(prevState => {
         const author = prevState.users[authorId];

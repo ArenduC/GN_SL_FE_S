@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 let socket: Socket | null = null;
 let currentProjectId: string | null = null;
 let currentToken: string | null = null;
+let messageCallback: ((payload: any) => void) | null = null;
 
 export const getSocketUrl = (): string => {
     return 'https://hamburg-mounting-mountain-thomson.trycloudflare.com';
@@ -13,6 +14,9 @@ export const getSocket = (): Socket | null => {
 };
 
 export const initSocket = (token: string, onMessageReceived: (message: any) => void) => {
+    // Keep the local callback reference updated with the latest React cycle callback
+    messageCallback = onMessageReceived;
+
     // If socket is already initialized with the same token, don't re-initialize
     if (socket && currentToken === token) {
         return socket;
@@ -33,7 +37,6 @@ export const initSocket = (token: string, onMessageReceived: (message: any) => v
             auth: {
                 token: token
             },
-            transports: ['polling', 'websocket'], // Try polling first for ultimate proxy compatibility, then upgrade
             autoConnect: true,
             reconnection: true,
             reconnectionAttempts: 5, // Graceful retry limits to avoid infinite spamming
@@ -59,19 +62,19 @@ export const initSocket = (token: string, onMessageReceived: (message: any) => v
             console.warn('WebSocket connection gracefully warning:', error.message || error);
         });
 
-        // Listen for chat broadcast
+        // Listen for chat broadcast - execute the up-to-date callback
         socket.on('chat:broadcast', (payload: any) => {
             console.log('Received chat:broadcast via WebSocket:', payload);
-            if (payload) {
-                onMessageReceived(payload);
+            if (payload && messageCallback) {
+                messageCallback(payload);
             }
         });
 
-        // Listen for standard chat event
+        // Listen for standard chat event - execute the up-to-date callback
         socket.on('chat', (payload: any) => {
             console.log('Received chat event via WebSocket:', payload);
-            if (payload) {
-                onMessageReceived(payload);
+            if (payload && messageCallback) {
+                messageCallback(payload);
             }
         });
 
