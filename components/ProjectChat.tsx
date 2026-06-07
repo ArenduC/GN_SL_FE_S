@@ -3,6 +3,7 @@ import { ChatMessage, User, Project } from '../types';
 import { XIcon, SendIcon, CopyIcon, CheckIcon, MessageSquareIcon } from './Icons';
 import { UserAvatar } from './UserAvatar';
 import { JsonSyntaxHighlighter } from './JsonSyntaxHighlighter';
+import { joinProjectRoom } from '../services/socketService';
 
 interface ProjectChatProps {
     project: Project;
@@ -198,6 +199,12 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     useEffect(() => {
         setActiveChatProjectId(project.id);
     }, [project.id]);
+
+    useEffect(() => {
+        if (activeChatProjectId) {
+            joinProjectRoom(activeChatProjectId);
+        }
+    }, [activeChatProjectId]);
 
     const activeProjectObj = useMemo(() => {
         return (projects || []).find(p => p.id === activeChatProjectId) || project;

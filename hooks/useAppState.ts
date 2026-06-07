@@ -141,13 +141,11 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
     }
 
     const handleSocketMessage = (payload: any) => {
-      if (!activeProjectId) return;
-
       const payloadId = payload.id;
       const payloadProjectId = payload.projectId || payload.project_id;
+      const targetProjectId = payloadProjectId || activeProjectId;
 
-      // Ensure the received message is for the active project
-      if (payloadProjectId && payloadProjectId !== activeProjectId) return;
+      if (!targetProjectId) return;
 
       const authorId = payload.senderId || payload.sender_id || payload.author_id;
       const messageText = payload.message || payload.text;
@@ -157,7 +155,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
 
       setState(prevState => {
         const author = prevState.users[authorId];
-        // Fallback user profile in case user list isn't populated
+        // Fallback user profile in case user list isn’t populated
         const finalAuthor: User = author || {
           id: authorId,
           name: 'Collaborator',
@@ -165,7 +163,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
           role: 'Member' as any,
         };
 
-        const project = prevState.projects[activeProjectId];
+        const project = prevState.projects[targetProjectId];
         if (!project) return prevState;
 
         const finalMessage: ChatMessage = {
@@ -197,7 +195,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
           ...prevState,
           projects: {
             ...prevState.projects,
-            [activeProjectId]: {
+            [targetProjectId]: {
               ...project,
               chatMessages: newMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
               updatedAt: new Date().toISOString()
