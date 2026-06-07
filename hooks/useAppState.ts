@@ -4,7 +4,7 @@ import { AppState, Task, NewTaskData, User, ChatMessage, AiGeneratedProjectPlan,
 import { api, getTicketId } from '../services/api';
 import { generateTaskFromPrompt } from '../services/geminiService';
 import { Session } from '@supabase/supabase-js';
-import { playSentSound } from '../utils/sound';
+import { playSentSound, playReceiveSound } from '../utils/sound';
 import { initSocket, joinProjectRoom, disconnectSocket, sendSocketChatMessage } from '../services/socketService';
 
 const initialState: AppState = {
@@ -111,6 +111,9 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
         } else {
           if (project.chatMessages.some(m => m.id === finalMessage.id)) return prevState;
           newMessages = [...project.chatMessages, finalMessage];
+          setTimeout(() => {
+            playReceiveSound();
+          }, 50);
         }
 
         const newState = {
@@ -199,6 +202,9 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
         } else {
           if (project.chatMessages.some(m => m.id === finalMessage.id)) return prevState;
           newMessages = [...project.chatMessages, finalMessage];
+          setTimeout(() => {
+            playReceiveSound();
+          }, 50);
         }
 
         const newState = {

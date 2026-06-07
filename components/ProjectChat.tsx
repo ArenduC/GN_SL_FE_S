@@ -115,30 +115,43 @@ const ChatBubble: React.FC<{
     };
 
     return (
-        <div className="group flex items-start gap-3.5 py-3.5 px-4 sm:px-6 hover:bg-white/[0.015] border-b border-white/[0.03] transition-colors relative w-full text-left">
+        <div className={`group flex items-start gap-3.5 py-3.5 px-4 sm:px-6 hover:bg-white/[0.015] border-b border-white/[0.03] transition-colors relative w-full ${isCurrentUser ? 'flex-row-reverse text-right' : 'text-left'}`}>
             <UserAvatar user={message.author} className="w-8 h-8 rounded-lg flex-shrink-0 text-xs text-white" isOnline={isOnline} />
             
             <div className="flex-grow min-w-0">
                 {/* Header Row */}
-                <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-white truncate">
-                        {message.author?.name || 'Collaborator'}
-                    </span>
-                    {isCurrentUser && (
-                        <span className="text-[8px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 px-1 py-0.5 rounded-md shrink-0">
-                            You
-                        </span>
+                <div className={`flex items-center gap-2 ${isCurrentUser ? 'justify-end' : ''}`}>
+                    {isCurrentUser ? (
+                        <>
+                            <span className="text-[10px] text-gray-500 font-mono">
+                                {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                            <span className="text-[8px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 px-1 py-0.5 rounded-md shrink-0">
+                                You
+                            </span>
+                            <span className="font-bold text-xs text-white truncate">
+                                {message.author?.name || 'Collaborator'}
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <span className="font-bold text-xs text-white truncate">
+                                {message.author?.name || 'Collaborator'}
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-mono">
+                                {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                        </>
                     )}
-                    <span className="text-[10px] text-gray-500 font-mono">
-                        {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
                 </div>
 
                 {/* Message Text Block */}
-                <div className="mt-1 text-xs text-gray-300 leading-relaxed max-w-full overflow-hidden">
+                <div className={`mt-1 text-xs text-gray-300 leading-relaxed max-w-full overflow-hidden ${isCurrentUser ? 'text-right' : 'text-left'}`}>
                     {isJson ? (
-                        <div className="mt-1.5">
-                            <JsonSyntaxHighlighter data={message.text} />
+                        <div className={`mt-1.5 w-full ${isCurrentUser ? 'text-left flex justify-end' : ''}`}>
+                            <div className="max-w-full">
+                                <JsonSyntaxHighlighter data={message.text} />
+                            </div>
                         </div>
                     ) : (
                         <div>
@@ -165,7 +178,7 @@ const ChatBubble: React.FC<{
 
             {/* Hover Floating Copy Option */}
             {!isJson && (
-                <div className="absolute right-4 top-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-[#0D1112] border border-white/10 rounded-lg p-0.5 shadow-xl z-20">
+                <div className={`absolute top-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-[#0D1112] border border-white/10 rounded-lg p-0.5 shadow-xl z-20 ${isCurrentUser ? 'left-4' : 'right-4'}`}>
                     <button 
                         onClick={handleCopy} 
                         className="p-1.5 rounded hover:bg-white/5 text-gray-400 hover:text-white transition-colors cursor-pointer" 
