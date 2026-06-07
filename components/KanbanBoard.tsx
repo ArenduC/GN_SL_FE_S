@@ -233,6 +233,131 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const boardData = project.board;
   const requestConfirmation = useConfirmation();
 
+  // Mouse wheel/scroller key click and drag scrolling logic
+  const boardScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const isCenterDragging = useRef(false);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const startScrollLeft = useRef(0);
+  const startScrollTop = useRef(0);
+
+  // Auto scroll on item/column drag near edges logic
+  const isDraggingHorizontal = useRef(false);
+  const scrollSpeed = useRef(0);
+  const scrollAnimationFrameId = useRef<number | null>(null);
+
+  const startAutoScrollLoop = useCallback(() => {
+    if (scrollAnimationFrameId.current) return;
+    
+    const scrollUpdate = () => {
+      if (!isDraggingHorizontal.current) {
+        scrollAnimationFrameId.current = null;
+        return;
+      }
+      
+      const container = boardScrollContainerRef.current;
+      if (container && scrollSpeed.current !== 0) {
+        container.scrollLeft += scrollSpeed.current;
+      }
+      
+      scrollAnimationFrameId.current = requestAnimationFrame(scrollUpdate);
+    };
+    
+    scrollAnimationFrameId.current = requestAnimationFrame(scrollUpdate);
+  }, []);
+
+  const stopAutoScrollLoop = useCallback(() => {
+    if (scrollAnimationFrameId.current) {
+      cancelAnimationFrame(scrollAnimationFrameId.current);
+      scrollAnimationFrameId.current = null;
+    }
+    scrollSpeed.current = 0;
+  }, []);
+
+  const handleGlobalMouseMoveForDrag = useCallback((e: MouseEvent) => {
+    if (!isDraggingHorizontal.current || !boardScrollContainerRef.current) {
+      scrollSpeed.current = 0;
+      return;
+    }
+    
+    const container = boardScrollContainerRef.current;
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
+    
+    // Check if vertical position is within or close to the container to avoid false positive triggers outside the board
+    if (mouseY < rect.top - 100 || mouseY > rect.bottom + 100) {
+      scrollSpeed.current = 0;
+      return;
+    }
+
+    const leftThreshold = rect.left + 150; // 150px from left edge
+    const rightThreshold = rect.right - 150; // 150px from right edge
+    
+    if (mouseX < leftThreshold && mouseX >= rect.left - 50) {
+      // Scale scroll speed based on proximity to left boundary
+      const ratio = (leftThreshold - mouseX) / 150;
+      scrollSpeed.current = -Math.round(Math.max(3, ratio * 24));
+    } else if (mouseX > rightThreshold && mouseX <= rect.right + 50) {
+      // Scale scroll speed based on proximity to right boundary
+      const ratio = (mouseX - rightThreshold) / 150;
+      scrollSpeed.current = Math.round(Math.max(3, ratio * 24));
+    } else {
+      scrollSpeed.current = 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    const onGlobalMouseMove = (e: MouseEvent) => {
+      handleGlobalMouseMoveForDrag(e);
+    };
+    
+    window.addEventListener('mousemove', onGlobalMouseMove, true);
+    return () => {
+      window.removeEventListener('mousemove', onGlobalMouseMove, true);
+      if (scrollAnimationFrameId.current) {
+        cancelAnimationFrame(scrollAnimationFrameId.current);
+      }
+    };
+  }, [handleGlobalMouseMoveForDrag]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // 1 is the scroll wheel (middle click / scroller key)
+    if (e.button === 1) {
+      e.preventDefault();
+      isCenterDragging.current = true;
+      startX.current = e.pageX - (boardScrollContainerRef.current?.offsetLeft || 0);
+      startY.current = e.pageY - (boardScrollContainerRef.current?.offsetTop || 0);
+      startScrollLeft.current = boardScrollContainerRef.current?.scrollLeft || 0;
+      startScrollTop.current = boardScrollContainerRef.current?.scrollTop || 0;
+      if (boardScrollContainerRef.current) {
+        boardScrollContainerRef.current.style.cursor = 'grabbing';
+        boardScrollContainerRef.current.style.userSelect = 'none';
+      }
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isCenterDragging.current || !boardScrollContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - boardScrollContainerRef.current.offsetLeft;
+    const y = e.pageY - boardScrollContainerRef.current.offsetTop;
+    const walkX = (x - startX.current) * 1.5;
+    const walkY = (y - startY.current) * 1.5;
+    boardScrollContainerRef.current.scrollLeft = startScrollLeft.current - walkX;
+    boardScrollContainerRef.current.scrollTop = startScrollTop.current - walkY;
+  }, []);
+
+  const handleMouseUpOrLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isCenterDragging.current) {
+      isCenterDragging.current = false;
+      if (boardScrollContainerRef.current) {
+        boardScrollContainerRef.current.style.cursor = '';
+        boardScrollContainerRef.current.style.userSelect = '';
+      }
+    }
+  }, []);
+
   const filteredBoardData: BoardData = useMemo(() => {
     const defaultBoard: BoardData = { tasks: {}, columns: {}, columnOrder: [] };
     if (!boardData?.tasks || !boardData?.columns) return defaultBoard;
@@ -381,9 +506,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       .filter((u): u is User => !!u);
   }, [boardData?.tasks, users]);
 
+  const handleDragStart = useCallback(() => {
+    isDraggingHorizontal.current = true;
+    startAutoScrollLoop();
+  }, [startAutoScrollLoop]);
+
   const handleDragEnd = useCallback((result: DropResult) => {
+    isDraggingHorizontal.current = false;
+    stopAutoScrollLoop();
     onDragEnd(result, filteredBoardData);
-  }, [onDragEnd, filteredBoardData]);
+  }, [onDragEnd, filteredBoardData, stopAutoScrollLoop]);
   const [copiedViewId, setCopiedViewId] = useState<string | null>(null);
   
   const [tasksToConfirm, setTasksToConfirm] = useState<AiGeneratedTaskFromFile[] | null>(null);
@@ -749,13 +881,20 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             onCompleteSprint={handleOpenCompleteSprint}
         />
       ) : projectView === 'board' ? (
-        <DragDropContext onDragEnd={handleDragEnd}>
+        <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <StrictModeDroppable droppableId="all-columns" direction="horizontal" type="column">
             {(provided) => (
                     <div
                         {...provided.droppableProps}
-                        ref={provided.innerRef}
-                        className="flex gap-6 items-start pb-4 -mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto custom-scrollbar"
+                        ref={(el) => {
+                            provided.innerRef(el);
+                            boardScrollContainerRef.current = el;
+                        }}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUpOrLeave}
+                        onMouseLeave={handleMouseUpOrLeave}
+                        className="flex gap-6 items-start pb-4 -mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto custom-scrollbar select-none"
                     >
                         {filteredBoardData.columnOrder.map((columnId, index) => {
                             const column = filteredBoardData.columns[columnId];
