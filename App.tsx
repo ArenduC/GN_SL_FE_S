@@ -23,7 +23,7 @@ import { FeedbackFab } from './components/FeedbackFab';
 import { FeedbackModal } from './components/FeedbackModal';
 import { InfoHubModal } from './components/InfoHubModal';
 import { NotificationToast } from './components/NotificationToast';
-import { AppLogo, SearchIcon, BotMessageSquareIcon, LogOutIcon, SettingsIcon, MessageSquareIcon, RotateCwIcon, ArrowLeftIcon, HelpCircleIcon, CheckSquareIcon, PlusIcon, UsersIcon, BellIcon, LayoutDashboardIcon, TableIcon, GitBranchIcon, RocketIcon } from './components/Icons';
+import { AppLogo, SearchIcon, BotMessageSquareIcon, LogOutIcon, SettingsIcon, MessageSquareIcon, RotateCwIcon, ArrowLeftIcon, HelpCircleIcon, CheckSquareIcon, PlusIcon, UsersIcon, BellIcon, LayoutDashboardIcon, TableIcon, GitBranchIcon, RocketIcon, ExternalLinkIcon } from './components/Icons';
 import { Session } from '@supabase/supabase-js';
 import { interpretVoiceCommand } from './services/geminiService';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
@@ -91,6 +91,16 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
 
   const [prefCounter, setPrefCounter] = useState(0);
 
+  const [alwaysOpenInPopup, setAlwaysOpenInPopup] = useState<boolean>(() => {
+    return localStorage.getItem('user_project_always_popup') === 'true';
+  });
+
+  const toggleAlwaysOpenInPopup = useCallback(() => {
+    const nextVal = !alwaysOpenInPopup;
+    setAlwaysOpenInPopup(nextVal);
+    localStorage.setItem('user_project_always_popup', String(nextVal));
+  }, [alwaysOpenInPopup]);
+
   const activeTheme = useMemo(() => {
     return localStorage.getItem('user_project_theme') || 'dark';
   }, [prefCounter]);
@@ -99,7 +109,11 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
     return localStorage.getItem('user_project_timezone') || 'UTC';
   }, [prefCounter]);
 
-  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment } = useAppState(session, currentUser, activeProjectId);
+  useEffect(() => {
+    setAlwaysOpenInPopup(localStorage.getItem('user_project_always_popup') === 'true');
+  }, [prefCounter]);
+
+  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject } = useAppState(session, currentUser, activeProjectId);
 
   useEffect(() => {
     const defaultProjId = localStorage.getItem('user_project_default_project');
@@ -303,14 +317,43 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
     }
   };
 
-  const handleSelectProject = (projectId: string) => {
+  const handleOpenProjectPopup = useCallback((projId: string) => {
+    api.data.touchProject(projId).catch(console.warn);
+    const url = `/project/${projId}?popup=true`;
+    const winName = `ProjectWindow_${projId}`;
+    const features = 'width=1280,height=800,scrollbars=yes,resizable=yes,status=yes,location=no,toolbar=no,menubar=no';
+    const win = window.open(url, winName, features);
+    if (win) {
+      win.focus();
+    } else {
+      // If blocked, fallback to normal navigation in current tab
+      dispatch(setReduxActiveProjectId(projId));
+      const preferredView = (localStorage.getItem('user_project_default_view') || 'board') as 'board' | 'table' | 'graph' | 'sprints';
+      setProjectView(preferredView);
+      navigate(`/project/${projId}`);
+    }
+  }, [navigate, dispatch]);
+
+  const handleSelectProject = useCallback((projectId: string) => {
     // Perform server-side touch to ensure sorting persists across browsers/sessions
     api.data.touchProject(projectId).catch(console.warn);
-    dispatch(setReduxActiveProjectId(projectId));
-    const preferredView = (localStorage.getItem('user_project_default_view') || 'board') as 'board' | 'table' | 'graph' | 'sprints';
-    setProjectView(preferredView);
-    navigate(`/project/${projectId}`);
-  };
+
+    // Check if we are already inside a popup window
+    const isCurrentPopup = window.opener !== null || window.name.startsWith('ProjectWindow_') || window.location.search.includes('popup=true');
+
+    if (alwaysOpenInPopup && !isCurrentPopup) {
+      handleOpenProjectPopup(projectId);
+    } else {
+      dispatch(setReduxActiveProjectId(projectId));
+      const preferredView = (localStorage.getItem('user_project_default_view') || 'board') as 'board' | 'table' | 'graph' | 'sprints';
+      setProjectView(preferredView);
+      if (isCurrentPopup) {
+        navigate(`/project/${projectId}?popup=true`);
+      } else {
+        navigate(`/project/${projectId}`);
+      }
+    }
+  }, [alwaysOpenInPopup, handleOpenProjectPopup, navigate, dispatch]);
 
   const project = activeProjectId ? state.projects[activeProjectId] : null;
 
@@ -465,17 +508,29 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                         </button>
                         <div className="h-px bg-white/5 my-1" />
                         {Object.values(state.projects || {}).map((p) => (
-                          <button 
-                            key={p.id}
-                            onClick={() => {
-                              handleSelectProject(p.id);
-                              setIsWorkspaceDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between hover:bg-white/5 ${project?.id === p.id ? 'bg-[#101918] text-emerald-400' : 'text-gray-400 hover:text-white'}`}
-                          >
-                            <span className="truncate">{p.name}</span>
-                            {project?.id === p.id && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
-                          </button>
+                          <div key={p.id} className="relative group/workspacerow flex items-center w-full">
+                            <button 
+                              onClick={() => {
+                                handleSelectProject(p.id);
+                                setIsWorkspaceDropdownOpen(false);
+                              }}
+                              className={`flex-grow text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between hover:bg-white/5 ${project?.id === p.id ? 'bg-[#101918] text-emerald-400' : 'text-gray-400 hover:text-white'}`}
+                            >
+                              <span className="truncate pr-6">{p.name}</span>
+                              {project?.id === p.id && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full flex-shrink-0" />}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenProjectPopup(p.id);
+                                setIsWorkspaceDropdownOpen(false);
+                              }}
+                              className="absolute right-2.5 opacity-0 group-hover/workspacerow:opacity-100 p-1 rounded hover:bg-white/10 text-gray-500 hover:text-emerald-400 transition-all z-10"
+                              title="Open in Floating Window"
+                            >
+                              <ExternalLinkIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -612,14 +667,25 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 {/* Active Projects Divider Section */}
                 {!isSidebarCollapsed && (
                   <div className="mt-4 mb-2 px-3 flex items-center justify-between text-[10px] font-black text-gray-500 tracking-widest uppercase">
-                    <span>Project Nodes</span>
-                    <button 
-                      onClick={() => setIsCreateProjectOpen(true)}
-                      className="p-0.5 hover:text-white hover:bg-white/5 rounded transition-all"
-                      title="Add Project"
-                    >
-                      <PlusIcon className="w-3.5 h-3.5" />
-                    </button>
+                    <span className="flex items-center gap-1.5 cursor-help" title="To open in separate floating windows instead: toggle popup mode">
+                      Project Nodes
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={toggleAlwaysOpenInPopup}
+                        className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase transition-all tracking-widest leading-none ${alwaysOpenInPopup ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-500 hover:text-white bg-white/5 border border-white/5'}`}
+                        title={alwaysOpenInPopup ? "Popup Mode Enabled: Clicking project opens floating window" : "Popup Mode Disabled: Click row to switch page"}
+                      >
+                        {alwaysOpenInPopup ? "Popup: ON" : "Popup: OFF"}
+                      </button>
+                      <button 
+                        onClick={() => setIsCreateProjectOpen(true)}
+                        className="p-0.5 hover:text-white hover:bg-white/5 rounded transition-all"
+                        title="Add Project"
+                      >
+                        <PlusIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -630,24 +696,38 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                     .map((p) => {
                       const isActive = activeProjectId === p.id;
                       return (
-                        <div key={p.id} className="space-y-1">
-                          <button 
-                            onClick={() => handleSelectProject(p.id)}
-                            className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all ${
-                              isActive 
-                                ? 'bg-[#101918] text-emerald-400 border-l-2 border-emerald-500 pl-2 font-bold' 
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                            }`}
-                            title={p.name}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-gray-600'}`} />
-                              {!isSidebarCollapsed && <span className="truncate text-[11px] font-semibold">{p.name}</span>}
-                            </div>
-                            {!isSidebarCollapsed && isActive && (
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                        <div key={p.id} className="space-y-1 group/projrow relative">
+                          <div className="flex items-center w-full">
+                            <button 
+                              onClick={() => handleSelectProject(p.id)}
+                              className={`flex-grow flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all ${
+                                isActive 
+                                  ? 'bg-[#101918] text-emerald-400 border-l-2 border-emerald-500 pl-2 font-bold' 
+                                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                              }`}
+                              title={p.name}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-gray-600'}`} />
+                                {!isSidebarCollapsed && <span className="truncate text-[11px] font-semibold max-w-[125px]">{p.name}</span>}
+                              </div>
+                              {!isSidebarCollapsed && isActive && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0 mr-4" />
+                              )}
+                            </button>
+                            {!isSidebarCollapsed && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenProjectPopup(p.id);
+                                }}
+                                className="absolute right-2 opacity-0 group-hover/projrow:opacity-100 p-1 rounded hover:bg-white/10 text-gray-500 hover:text-emerald-400 transition-all z-10"
+                                title="Open in Floating Window"
+                              >
+                                <ExternalLinkIcon className="w-3.5 h-3.5" />
+                              </button>
                             )}
-                          </button>
+                          </div>
                           
                           {/* Inner view options vertical sidebar item submenu */}
                           {isActive && (
@@ -763,7 +843,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
               
               {/* Top Navigation Bar */}
               <header 
-                className="h-14 min-h-[56px] max-h-14 flex-shrink-0 overflow-hidden flex-nowrap border-b border-white/5 bg-[#0E1314]/85 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-35 transition-all duration-300 ease-in-out"
+                className="h-14 min-h-[56px] max-h-14 flex-shrink-0 overflow-visible flex-nowrap border-b border-white/5 bg-[#0E1314]/85 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-35 transition-all duration-300 ease-in-out"
                 style={{ marginRight: headerMarginRight }}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
@@ -949,9 +1029,10 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                     addTasksBatch={(ts, sid) => addTasksBatch(project.id, ts, sid)} addSprint={(sd) => addSprint(project.id, sd)} updateSprint={(sid, up) => updateSprint(project.id, sid, up)}
                     deleteSprint={(sid) => deleteSprint(project.id, sid)} bulkUpdateTaskSprint={bulkUpdateTaskSprint} completeSprint={completeSprint}
                     addFilterSegment={(n, f) => addFilterSegment(project.id, n, f, currentUser.id)} updateFilterSegment={updateFilterSegment} deleteFilterSegment={deleteFilterSegment}
+                    fetchChatMessagesForProject={fetchChatMessagesForProject}
                   />
                 ) : currentView === 'dashboard' ? (
-                  <DashboardPage projects={Object.values(state.projects || {})} users={state.users || {}} currentUser={currentUser} onlineUsers={onlineUsers} onSelectProject={handleSelectProject} onCreateProject={() => setIsCreateProjectOpen(true)} onManageMembers={(id) => {setMemberProjectId(id); setIsManageMembersOpen(true);}} onShareProject={(p) => {setShareProject(p); setIsShareModalOpen(true);}} addProjectFromPlan={addProjectFromPlan} aiFeaturesEnabled={featureFlags.ai} />
+                  <DashboardPage projects={Object.values(state.projects || {})} users={state.users || {}} currentUser={currentUser} onlineUsers={onlineUsers} onSelectProject={handleSelectProject} onCreateProject={() => setIsCreateProjectOpen(true)} onManageMembers={(id) => {setMemberProjectId(id); setIsManageMembersOpen(true);}} onShareProject={(p) => {setShareProject(p); setIsShareModalOpen(true);}} addProjectFromPlan={addProjectFromPlan} aiFeaturesEnabled={featureFlags.ai} onOpenProjectPopup={handleOpenProjectPopup} />
                 ) : currentView === 'tasks' ? (
                   <TasksPage projects={state.projects} users={state.users} currentUser={currentUser} onTaskClick={handleTaskClick} />
                 ) : (

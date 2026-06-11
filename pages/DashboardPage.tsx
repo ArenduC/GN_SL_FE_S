@@ -22,6 +22,7 @@ interface DashboardPageProps {
   onShareProject: (project: Project) => void;
   addProjectFromPlan: (plan: AiGeneratedProjectPlan) => Promise<void>;
   aiFeaturesEnabled: boolean;
+  onOpenProjectPopup?: (projectId: string) => void;
 }
 
 const StatCard: React.FC<{ icon: React.ReactNode, label: string, value: string | number, trend?: string }> = ({ icon, label, value, trend }) => (
@@ -352,7 +353,7 @@ const DeadlineTracker: React.FC<{ tasks: Task[], onTaskClick: (task: Task) => vo
     );
 };
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, currentUser, onlineUsers, onSelectProject, onCreateProject, onManageMembers, onShareProject, addProjectFromPlan, aiFeaturesEnabled }) => {
+export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, currentUser, onlineUsers, onSelectProject, onCreateProject, onManageMembers, onShareProject, addProjectFromPlan, aiFeaturesEnabled, onOpenProjectPopup }) => {
     const [view, setView] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
     const [generatedPlan, setGeneratedPlan] = useState<AiGeneratedProjectPlan | null>(null);
@@ -498,7 +499,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
                                             Active Nexus
                                         </div>
                                     )}
-                                    <ProjectCard project={p} users={users} onlineUsers={onlineUsers} onSelect={onSelectProject} onManageMembers={onManageMembers} onShare={() => onShareProject(p)} />
+                                    <ProjectCard project={p} users={users} onlineUsers={onlineUsers} onSelect={onSelectProject} onManageMembers={onManageMembers} onShare={() => onShareProject(p)} onOpenPopup={onOpenProjectPopup} />
                                 </div>
                             ))}
                         </div>
@@ -512,7 +513,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
                                 <div className="col-span-2"></div>
                             </div>
                             {paginatedProjects.map(p => (
-                                <ProjectListRow key={p.id} project={p} users={users} onlineUsers={onlineUsers} onSelect={onSelectProject} onManageMembers={onManageMembers} onShare={() => onShareProject(p)} />
+                                <ProjectListRow key={p.id} project={p} users={users} onlineUsers={onlineUsers} onSelect={onSelectProject} onManageMembers={onManageMembers} onShare={() => onShareProject(p)} onOpenPopup={onOpenProjectPopup} />
                             ))}
                         </div>
                     )}

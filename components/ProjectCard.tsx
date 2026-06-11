@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Project, User, Column } from '../types';
-import { UsersIcon, Share2Icon, SparklesIcon, VideoIcon } from './Icons';
+import { UsersIcon, Share2Icon, SparklesIcon, VideoIcon, ExternalLinkIcon } from './Icons';
 import { UserAvatar } from './UserAvatar';
 
 interface ProjectCardProps {
@@ -10,9 +10,10 @@ interface ProjectCardProps {
   onSelect: (projectId: string) => void;
   onManageMembers: (projectId: string) => void;
   onShare: () => void;
+  onOpenPopup?: (projectId: string) => void;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, users, onlineUsers, onSelect, onManageMembers, onShare }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, users, onlineUsers, onSelect, onManageMembers, onShare, onOpenPopup }) => {
   // Defensive checks for nested board data
   const board = project.board;
   const tasks = board?.tasks || {};
@@ -96,6 +97,15 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, users, online
                 )}
             </div>
             <div className="flex items-center gap-1.5">
+                {onOpenPopup && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onOpenPopup(project.id); }} 
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-white/5 transition-all"
+                        title="Open in Floating Window"
+                    >
+                        <ExternalLinkIcon className="w-3.5 h-3.5" />
+                    </button>
+                )}
                 <button onClick={(e) => { e.stopPropagation(); onShare(); }} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all">
                     <Share2Icon className="w-3.5 h-3.5" />
                 </button>

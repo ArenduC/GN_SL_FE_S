@@ -54,6 +54,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [prefProject, setPrefProject] = useState(() => localStorage.getItem('user_project_default_project') || '');
   const [prefTheme, setPrefTheme] = useState(() => localStorage.getItem('user_project_theme') || 'dark');
   const [prefTimezone, setPrefTimezone] = useState(() => localStorage.getItem('user_project_timezone') || 'UTC');
+  const [alwaysPopup, setAlwaysPopup] = useState(() => localStorage.getItem('user_project_always_popup') === 'true');
 
   // BYOK State
   const [apiKey, setApiKey] = useState(localStorage.getItem('user_gemini_api_key') || '');
@@ -203,6 +204,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     <div className="h-px bg-gray-700/50 my-4" />
+
+                    <ToggleSwitch 
+                        label="Always Open in Floating Window" 
+                        enabled={alwaysPopup} 
+                        onChange={(enabled) => {
+                            setAlwaysPopup(enabled);
+                            localStorage.setItem('user_project_always_popup', String(enabled));
+                            if (onPreferencesChange) {
+                                onPreferencesChange();
+                            }
+                        }} 
+                    />
 
                     <ToggleSwitch 
                         label="AI Active Processing" 

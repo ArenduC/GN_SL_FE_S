@@ -1,6 +1,6 @@
 import React from 'react';
 import { Project, User, Column } from '../types';
-import { UsersIcon, Share2Icon } from './Icons';
+import { UsersIcon, Share2Icon, ExternalLinkIcon } from './Icons';
 import { UserAvatar } from './UserAvatar';
 
 interface ProjectListRowProps {
@@ -10,9 +10,10 @@ interface ProjectListRowProps {
   onSelect: (projectId: string) => void;
   onManageMembers: (projectId: string) => void;
   onShare: () => void;
+  onOpenPopup?: (projectId: string) => void;
 }
 
-export const ProjectListRow: React.FC<ProjectListRowProps> = ({ project, users, onlineUsers, onSelect, onManageMembers, onShare }) => {
+export const ProjectListRow: React.FC<ProjectListRowProps> = ({ project, users, onlineUsers, onSelect, onManageMembers, onShare, onOpenPopup }) => {
   // Defensive checks for nested board data
   const board = project.board;
   const tasks = board?.tasks || {};
@@ -68,6 +69,15 @@ export const ProjectListRow: React.FC<ProjectListRowProps> = ({ project, users, 
       </div>
 
       <div className="col-span-2 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+        {onOpenPopup && (
+          <button 
+              onClick={(e) => { e.stopPropagation(); onOpenPopup(project.id); }}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+              title="Open in Floating Window"
+          >
+            <ExternalLinkIcon className="w-3 h-3" />
+          </button>
+        )}
         <button 
             onClick={(e) => { e.stopPropagation(); onShare(); }}
             className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"

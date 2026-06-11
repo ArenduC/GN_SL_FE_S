@@ -67,6 +67,7 @@ interface KanbanBoardProps {
   duplicateTask?: (taskId: string) => Promise<void>;
   isControlDeckOpen?: boolean;
   setIsControlDeckOpen?: (val: boolean) => void;
+  fetchChatMessagesForProject: (projectId: string) => Promise<void>;
 }
 
 const AddColumn: React.FC<{onAddColumn: (title: string) => void}> = ({ onAddColumn }) => {
@@ -204,7 +205,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint,
     addFilterSegment, updateFilterSegment, deleteFilterSegment, duplicateTask,
     isControlDeckOpen: externalControlDeckOpen,
-    setIsControlDeckOpen: setExternalControlDeckOpen
+    setIsControlDeckOpen: setExternalControlDeckOpen,
+    fetchChatMessagesForProject
 }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
@@ -963,6 +965,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             onlineUsers={onlineUsers}
             onClose={onCloseChat}
             onSendMessage={onSendMessage}
+            onFetchChat={fetchChatMessagesForProject}
         />
       )}
 

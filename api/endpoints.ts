@@ -53,5 +53,8 @@ export const ENDPOINTS = {
         addFilterSegment: '/filter/filter-add',
         updateFilterSegment: '/filter/filter-update',
         deleteFilterSegment: '/filter/filter-delete',
+    },
+    CHAT: {
+        getMessages: '/chat/get-message',
     }
 };

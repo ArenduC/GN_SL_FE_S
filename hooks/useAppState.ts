@@ -136,6 +136,39 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
     return () => { subscription.unsubscribe(); };
   }, [activeProjectId, session, userId]);
 
+  // Fetch separate chat messages history from the new API using a reusable callback
+  const fetchChatMessagesForProject = useCallback(async (projectId: string) => {
+    try {
+      const messages = await api.data.fetchChatMessages(projectId);
+      if (messages) {
+        setState(prevState => {
+          const project = prevState.projects[projectId];
+          if (!project) return prevState;
+          const newState = {
+            ...prevState,
+            projects: {
+              ...prevState.projects,
+              [projectId]: {
+                ...project,
+                chatMessages: messages.sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              }
+            }
+          };
+          syncCache(newState);
+          return newState;
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to fetch fresh chat history via separate API:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeProjectId) return;
+
+    fetchChatMessagesForProject(activeProjectId);
+  }, [activeProjectId, fetchChatMessagesForProject]);
+
   // Socket.IO real-time chat sync
   useEffect(() => {
     if (!session || !session.access_token || !userId) {
@@ -1044,5 +1077,5 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
   }, [state.projects, currentUser, fetchData]);
 
 
-  return { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addTask, duplicateTask, addAiTask, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment };
+  return { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addTask, duplicateTask, addAiTask, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject };
 };

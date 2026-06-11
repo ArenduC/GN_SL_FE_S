@@ -6,7 +6,7 @@ let currentToken: string | null = null;
 let messageCallback: ((payload: any) => void) | null = null;
 
 export const getSocketUrl = (): string => {
-    return 'https://hamburg-mounting-mountain-thomson.trycloudflare.com';
+    return 'https://course-board-defined-lion.trycloudflare.com';
 };
 
 export const getSocket = (): Socket | null => {

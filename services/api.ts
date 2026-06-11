@@ -399,6 +399,32 @@ const fetchTaskHistory = async (taskId: string): Promise<TaskHistory[]> => {
     return await taskService.getTaskHistory(taskId);
 };
 
+const fetchChatMessages = async (projectId: string): Promise<ChatMessage[]> => {
+    try {
+        const response = await client.post(ENDPOINTS.CHAT.getMessages, {
+            projectId
+        });
+        const payload = response.data;
+        if (payload && payload.success && Array.isArray(payload.data)) {
+            return payload.data.map((msg: any) => ({
+                id: msg.id,
+                text: msg.text || msg.message || '',
+                createdAt: msg.createdAt || msg.created_at || new Date().toISOString(),
+                author: {
+                    id: msg.author?.id || msg.author_id || 'unknown-author',
+                    name: msg.author?.name || 'Collaborator',
+                    avatarUrl: msg.author?.avatarUrl || msg.author?.avatar_url || '',
+                    role: msg.author?.role || 'Member'
+                }
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error("Failed to fetch chat messages:", error);
+        return [];
+    }
+};
+
 const fetchInitialData = async (userId: string): Promise<AppState> => {
     let rpcData: any = null;
     try {
@@ -1131,6 +1157,7 @@ export const api = {
     },
     data: {
         fetchInitialData,
+        fetchChatMessages,
         subscribeToProjectChat,
         moveTask,
         updateColumnOrder,

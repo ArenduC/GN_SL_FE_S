@@ -13,6 +13,7 @@ interface ProjectChatProps {
     onlineUsers: Set<string>;
     onClose: () => void;
     onSendMessage: (projectId: string, text: string) => Promise<void>;
+    onFetchChat?: (projectId: string) => Promise<void>;
 }
 
 const formatDateSeparator = (dateString: string) => {
@@ -200,7 +201,8 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     currentUser, 
     onlineUsers, 
     onClose, 
-    onSendMessage 
+    onSendMessage,
+    onFetchChat
 }) => {
     const [newMessage, setNewMessage] = useState('');
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -216,8 +218,11 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     useEffect(() => {
         if (activeChatProjectId) {
             joinProjectRoom(activeChatProjectId);
+            if (onFetchChat) {
+                onFetchChat(activeChatProjectId);
+            }
         }
-    }, [activeChatProjectId]);
+    }, [activeChatProjectId, onFetchChat]);
 
     const activeProjectObj = useMemo(() => {
         return (projects || []).find(p => p.id === activeChatProjectId) || project;
