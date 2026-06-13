@@ -229,6 +229,27 @@ export enum FeedbackType {
   GENERAL = 'General Feedback',
 }
 
+export interface UserSettings {
+  defaultView: 'board' | 'table' | 'graph' | 'sprints';
+  theme: string;
+  timezone: string;
+  aiMode: 'graphyAgent' | 'gemini' | 'noAgent';
+  defaultProject: string;
+  chat: {
+    enabled: boolean;
+    soundEnabled: boolean;
+  };
+  notifications: {
+    subscribed: boolean;
+    email: boolean;
+    push: boolean;
+  };
+  sidebar: {
+    visiblePanels: string[];
+    isCollapsed: boolean;
+  };
+}
+
 export interface Feedback {
   id: string;
   createdAt: string;

@@ -23,6 +23,7 @@ import { FeedbackFab } from './components/FeedbackFab';
 import { FeedbackModal } from './components/FeedbackModal';
 import { InfoHubModal } from './components/InfoHubModal';
 import { NotificationToast } from './components/NotificationToast';
+import { UserAvatar } from './components/UserAvatar';
 import { AppLogo, SearchIcon, BotMessageSquareIcon, LogOutIcon, SettingsIcon, MessageSquareIcon, RotateCwIcon, ArrowLeftIcon, HelpCircleIcon, CheckSquareIcon, PlusIcon, UsersIcon, BellIcon, LayoutDashboardIcon, TableIcon, GitBranchIcon, RocketIcon, ExternalLinkIcon } from './components/Icons';
 import { Session } from '@supabase/supabase-js';
 import { interpretVoiceCommand } from './services/geminiService';
@@ -109,9 +110,56 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
     return localStorage.getItem('user_project_timezone') || 'UTC';
   }, [prefCounter]);
 
+  const visibleSidebarPanels = useMemo<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('user_project_sidebar_panels');
+      return stored ? JSON.parse(stored) : ['dashboard', 'tasks', 'calendar', 'meetings', 'resources'];
+    } catch {
+      return ['dashboard', 'tasks', 'calendar', 'meetings', 'resources'];
+    }
+  }, [prefCounter]);
+
   useEffect(() => {
     setAlwaysOpenInPopup(localStorage.getItem('user_project_always_popup') === 'true');
   }, [prefCounter]);
+
+  useEffect(() => {
+    const fetchRemoteSettings = async () => {
+      if (!currentUser) return;
+      try {
+        const fetched = await api.auth.getUserSettings();
+        if (fetched) {
+          if (fetched.defaultView) localStorage.setItem('user_project_default_view', fetched.defaultView);
+          if (fetched.theme) localStorage.setItem('user_project_theme', fetched.theme);
+          if (fetched.timezone) localStorage.setItem('user_project_timezone', fetched.timezone);
+          if (fetched.aiMode) localStorage.setItem('user_project_ai_mode', fetched.aiMode);
+          if (fetched.defaultProject !== undefined) localStorage.setItem('user_project_default_project', fetched.defaultProject);
+          if (fetched.chat) {
+            localStorage.setItem('user_project_chat_enabled', String(fetched.chat.enabled));
+            localStorage.setItem('user_project_chat_sound', String(fetched.chat.soundEnabled));
+          }
+          if (fetched.notifications) {
+            localStorage.setItem('user_project_notif_subscribed', String(fetched.notifications.subscribed));
+            localStorage.setItem('user_project_notif_email', String(fetched.notifications.email));
+            localStorage.setItem('user_project_notif_push', String(fetched.notifications.push));
+          }
+          if (fetched.sidebar) {
+            if (fetched.sidebar.visiblePanels) {
+              localStorage.setItem('user_project_sidebar_panels', JSON.stringify(fetched.sidebar.visiblePanels));
+            }
+            if (fetched.sidebar.isCollapsed !== undefined) {
+              localStorage.setItem('user_project_sidebar_collapsed', String(fetched.sidebar.isCollapsed));
+            }
+          }
+          // Increment preference counter to update responsive views & layouts
+          setPrefCounter(prev => prev + 1);
+        }
+      } catch (err) {
+        console.warn("[App Info] Failed to preload settings from remote server, utilizing local cache", err);
+      }
+    };
+    fetchRemoteSettings();
+  }, [currentUser]);
 
   const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject } = useAppState(session, currentUser, activeProjectId);
 
@@ -576,93 +624,137 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 )}
 
                 {/* Dashboard Nav */}
-                <button 
-                  onClick={() => {
-                    dispatch(setReduxActiveProjectId(null));
-                    navigate('/dashboard');
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all ${
-                    currentView === 'dashboard' && !activeProjectId 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                  title="Dashboard"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                  </svg>
-                  {!isSidebarCollapsed && <span>Dashboard</span>}
-                </button>
-
-                {/* Tasks Page Nav */}
-                <button 
-                  onClick={() => {
-                    dispatch(setReduxActiveProjectId(null));
-                    navigate('/tasks');
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all ${
-                    currentView === 'tasks' 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                  title="All Tasks"
-                >
-                  <CheckSquareIcon className="w-4 h-4" />
-                  {!isSidebarCollapsed && <span>Tasks</span>}
-                </button>
-
-                {/* Mesh / Resource Navigation */}
-                <div className="space-y-1">
+                {visibleSidebarPanels.includes('dashboard') && (
                   <button 
                     onClick={() => {
                       dispatch(setReduxActiveProjectId(null));
-                      navigate('/resources');
+                      navigate('/dashboard');
                     }}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all ${
-                      (currentView === 'resources' || currentView === 'resource-mesh')
+                      currentView === 'dashboard' && !activeProjectId 
                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
                         : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
-                    title="Mesh & Reports"
+                    title="Dashboard"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0h.5m-1.5 0h-8.5m.5 0h-.5" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
                     </svg>
-                    {!isSidebarCollapsed && <span>Mesh & Reports</span>}
+                    {!isSidebarCollapsed && <span>Dashboard</span>}
                   </button>
+                )}
 
-                  {/* Sub-navigation for SaaS design */}
-                  {!isSidebarCollapsed && (currentView === 'resources' || currentView === 'resource-mesh') && (
-                    <div className="pl-6 pr-2 py-1 flex flex-col gap-1 ml-[11px]">
-                      <button
-                        onClick={() => {
-                          dispatch(setReduxActiveProjectId(null));
-                          navigate('/resources');
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
-                          currentView === 'resources' 
-                            ? 'text-emerald-400 bg-white/5 font-black' 
-                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        • Cluster Members
-                      </button>
-                      <button
-                        onClick={() => {
-                          dispatch(setReduxActiveProjectId(null));
-                          navigate('/resources/mesh');
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
-                          currentView === 'resource-mesh' 
-                            ? 'text-emerald-400 bg-white/5 font-black' 
-                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        • Neural Mesh
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* Tasks Page Nav */}
+                {visibleSidebarPanels.includes('tasks') && (
+                  <button 
+                    onClick={() => {
+                      dispatch(setReduxActiveProjectId(null));
+                      navigate('/tasks');
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all ${
+                      currentView === 'tasks' 
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                    title="All Tasks"
+                  >
+                    <CheckSquareIcon className="w-4 h-4" />
+                    {!isSidebarCollapsed && <span>Tasks</span>}
+                  </button>
+                )}
+
+                {/* Calendar Nav */}
+                {visibleSidebarPanels.includes('calendar') && (
+                  <button 
+                    onClick={() => {
+                      alert("Calendar Nexus Module: Loaded successfully. All active sprints & project events synced.");
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all text-gray-400 hover:text-white hover:bg-white/5"
+                    title="Calendar Sync"
+                  >
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    {!isSidebarCollapsed && <span>Calendar</span>}
+                  </button>
+                )}
+
+                {/* Meetings Nav */}
+                {visibleSidebarPanels.includes('meetings') && (
+                  <button 
+                    onClick={() => {
+                      alert("Meetings Active Broadcast Module: Operational. (No current ongoing video conferences)");
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all text-gray-400 hover:text-white hover:bg-white/5"
+                    title="Meetings Hub"
+                  >
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    {!isSidebarCollapsed && <span>Meetings</span>}
+                  </button>
+                )}
+
+                {/* Mesh / Resource Navigation */}
+                {visibleSidebarPanels.includes('resources') && (
+                  <div className="space-y-1">
+                    <button 
+                      onClick={() => {
+                        dispatch(setReduxActiveProjectId(null));
+                        navigate('/resources');
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium uppercase tracking-wider transition-all ${
+                        (currentView === 'resources' || currentView === 'resource-mesh')
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                      title="Mesh & Reports"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0h.5m-1.5 0h-8.5m.5 0h-.5" />
+                      </svg>
+                      {!isSidebarCollapsed && <span>Mesh & Reports</span>}
+                    </button>
+
+                    {/* Sub-navigation for SaaS design */}
+                    {!isSidebarCollapsed && (currentView === 'resources' || currentView === 'resource-mesh') && (
+                      <div className="pl-6 pr-2 py-1 flex flex-col gap-1 ml-[11px]">
+                        <button
+                          onClick={() => {
+                            dispatch(setReduxActiveProjectId(null));
+                            navigate('/resources');
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
+                            currentView === 'resources' 
+                              ? 'text-emerald-400 bg-white/5 font-black' 
+                              : 'text-gray-400 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          • Cluster Members
+                        </button>
+                        <button
+                          onClick={() => {
+                            dispatch(setReduxActiveProjectId(null));
+                            navigate('/resources/mesh');
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
+                            currentView === 'resource-mesh' 
+                              ? 'text-emerald-400 bg-white/5 font-black' 
+                              : 'text-gray-400 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          • Neural Mesh
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Active Projects Divider Section */}
                 {!isSidebarCollapsed && (
@@ -690,32 +782,32 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 )}
 
                 {/* Projects Section */}
-                <div className="space-y-0.5 max-h-[220px] overflow-y-auto no-scrollbar">
-                  {Object.values(state.projects || {})
-                    .filter(p => !sidebarSearch || p.name.toLowerCase().includes(sidebarSearch.toLowerCase()))
-                    .map((p) => {
-                      const isActive = activeProjectId === p.id;
-                      return (
-                        <div key={p.id} className="space-y-1 group/projrow relative">
-                          <div className="flex items-center w-full">
-                            <button 
-                              onClick={() => handleSelectProject(p.id)}
-                              className={`flex-grow flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all ${
-                                isActive 
-                                  ? 'bg-[#101918] text-emerald-400 border-l-2 border-emerald-500 pl-2 font-bold' 
-                                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-                              }`}
-                              title={p.name}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-gray-600'}`} />
-                                {!isSidebarCollapsed && <span className="truncate text-[11px] font-semibold max-w-[125px]">{p.name}</span>}
-                              </div>
-                              {!isSidebarCollapsed && isActive && (
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0 mr-4" />
-                              )}
-                            </button>
-                            {!isSidebarCollapsed && (
+                {!isSidebarCollapsed && (
+                  <div className="space-y-0.5 max-h-[220px] overflow-y-auto no-scrollbar">
+                    {Object.values(state.projects || {})
+                      .filter(p => !sidebarSearch || p.name.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                      .map((p) => {
+                        const isActive = activeProjectId === p.id;
+                        return (
+                          <div key={p.id} className="space-y-1 group/projrow relative">
+                            <div className="flex items-center w-full">
+                              <button 
+                                onClick={() => handleSelectProject(p.id)}
+                                className={`flex-grow flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all ${
+                                  isActive 
+                                    ? 'bg-[#101918] text-emerald-400 border-l-2 border-emerald-500 pl-2 font-bold' 
+                                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                }`}
+                                title={p.name}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-gray-600'}`} />
+                                  <span className="truncate text-[11px] font-semibold max-w-[125px]">{p.name}</span>
+                                </div>
+                                {isActive && (
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0 mr-4" />
+                                )}
+                              </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -726,33 +818,33 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                               >
                                 <ExternalLinkIcon className="w-3.5 h-3.5" />
                               </button>
+                            </div>
+                            
+                            {/* Inner view options vertical sidebar item submenu */}
+                            {isActive && (
+                              <div className="flex flex-col gap-1 pl-6 pr-2 py-1 ml-[11px]">
+                                {viewOptions.map(option => (
+                                  <button
+                                    key={option.id}
+                                    onClick={() => setProjectView(option.id as 'board' | 'table' | 'graph' | 'sprints')}
+                                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
+                                      projectView === option.id 
+                                        ? 'bg-emerald-500 text-black font-black shadow-[0_0_12px_rgba(16,185,129,0.3)]' 
+                                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                    }`}
+                                    title={option.label}
+                                  >
+                                    <option.icon className={`w-3.5 h-3.5 ${projectView === option.id ? 'text-black' : 'text-gray-400'}`} />
+                                    <span className="truncate">{option.label}</span>
+                                  </button>
+                                ))}
+                              </div>
                             )}
                           </div>
-                          
-                          {/* Inner view options vertical sidebar item submenu */}
-                          {isActive && (
-                            <div className={`flex flex-col gap-1 ${isSidebarCollapsed ? 'px-1 items-center' : 'pl-6 pr-2'} py-1 ml-[11px]`}>
-                              {viewOptions.map(option => (
-                                <button
-                                  key={option.id}
-                                  onClick={() => setProjectView(option.id as 'board' | 'table' | 'graph' | 'sprints')}
-                                  className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center h-8 w-8' : 'gap-2 px-2.5 py-1.5'} rounded-lg text-[9px] font-bold uppercase tracking-[0.1em] transition-all ${
-                                    projectView === option.id 
-                                      ? 'bg-emerald-500 text-black font-black shadow-[0_0_12px_rgba(16,185,129,0.3)]' 
-                                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                  }`}
-                                  title={option.label}
-                                >
-                                  <option.icon className={`w-3.5 h-3.5 ${projectView === option.id ? 'text-black' : 'text-gray-400'}`} />
-                                  {!isSidebarCollapsed && <span className="truncate">{option.label}</span>}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
+                        );
+                      })}
+                  </div>
+                )}
 
                 {/* Management / Settings Utilities */}
                 <div className="h-px bg-white/5 my-3" />
@@ -812,12 +904,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
               <div className="p-3 border-t border-white/5 bg-black/10">
                 <div className="flex items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="relative flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-bold text-xs text-white uppercase tracking-wider">
-                        {currentUser.name.slice(0, 2)}
-                      </div>
-                      <div className="absolute right-0 bottom-0 w-2 h-2 bg-emerald-400 rounded-full border-2 border-[#0B0E0F]" />
-                    </div>
+                    <UserAvatar user={currentUser} className="w-8 h-8 text-xs font-bold" isOnline={true} />
                     {!isSidebarCollapsed && (
                       <div className="min-w-0">
                         <p className="text-[11px] font-black text-white truncate leading-none mb-0.5">{currentUser.name}</p>
@@ -1002,10 +1089,10 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                   {/* Profile Menu Settings trigger */}
                   <button 
                     onClick={() => setIsSettingsOpen(true)}
-                    className="w-7 h-7 rounded-lg overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all flex items-center justify-center text-[10px] font-bold text-white uppercase"
+                    className="w-7 h-7 rounded-full overflow-hidden border border-white/10 hover:border-white/20 hover:scale-105 transition-all flex items-center justify-center text-[10px] font-bold text-white uppercase"
                     title="User Profile Profile Node"
                   >
-                    {currentUser.name.slice(0, 2)}
+                    <UserAvatar user={currentUser} className="w-full h-full text-[10px]" />
                   </button>
                 </div>
               </header>

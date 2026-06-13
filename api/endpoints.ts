@@ -25,6 +25,8 @@ export const ENDPOINTS = {
     },
     USER: {
         profile: (userId: string) => `/users/${userId}/profile`,
+        getSettings: '/profile/get-settings',
+        updateSettings: '/profile/update-settings',
     },
     DASHBOARD: {
         initialData: (userId: string) => `/dashboard/${userId}/initial-data`,

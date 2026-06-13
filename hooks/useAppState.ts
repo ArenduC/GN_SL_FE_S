@@ -877,7 +877,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
     await fetchData();
   }, [fetchData]);
 
-  const updateUserProfile = useCallback(async (updates: { name: string }) => {
+  const updateUserProfile = useCallback(async (updates: { name: string; avatarUrl?: string }) => {
     if (!userId) return;
     await api.auth.updateUserProfile(userId, updates);
     await fetchData();

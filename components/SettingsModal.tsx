@@ -4,12 +4,14 @@ import { User, Project } from '../types';
 import { XIcon, TrashIcon, UserIcon, SettingsIcon, LayoutDashboardIcon, SparklesIcon, ZapIcon, ShieldCheckIcon, LoaderCircleIcon, EyeIcon, EyeOffIcon } from './Icons';
 import { useConfirmation } from '../App';
 import { validateGeminiKey } from '../services/geminiService';
+import { api } from '../services/api';
+import { UserAvatar } from './UserAvatar';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User;
-  onUpdateUser: (updates: { name: string }) => Promise<void>;
+  onUpdateUser: (updates: { name: string; avatarUrl?: string }) => Promise<void>;
   featureFlags: { ai: boolean, voice: boolean };
   onFlagsChange: (flags: { ai: boolean, voice: boolean }) => void;
   projects: Project[];
@@ -47,6 +49,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const requestConfirmation = useConfirmation();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [userName, setUserName] = useState(currentUser.name);
+  const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl || '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   
   // Workspace preference states
@@ -55,6 +58,127 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [prefTheme, setPrefTheme] = useState(() => localStorage.getItem('user_project_theme') || 'dark');
   const [prefTimezone, setPrefTimezone] = useState(() => localStorage.getItem('user_project_timezone') || 'UTC');
   const [alwaysPopup, setAlwaysPopup] = useState(() => localStorage.getItem('user_project_always_popup') === 'true');
+
+  // Chat preferences
+  const [chatEnabled, setChatEnabled] = useState(() => localStorage.getItem('user_project_chat_enabled') !== 'false');
+  const [chatSound, setChatSound] = useState(() => localStorage.getItem('user_project_chat_sound') !== 'false');
+
+  // Notification preferences
+  const [notifSubscribed, setNotifSubscribed] = useState(() => localStorage.getItem('user_project_notif_subscribed') !== 'false');
+  const [notifEmail, setNotifEmail] = useState(() => localStorage.getItem('user_project_notif_email') !== 'false');
+  const [notifPush, setNotifPush] = useState(() => localStorage.getItem('user_project_notif_push') === 'true');
+
+  // AI Agent mode
+  const [aiMode, setAiMode] = useState<'graphyAgent' | 'gemini' | 'noAgent'>(() => {
+    return (localStorage.getItem('user_project_ai_mode') || 'noAgent') as 'graphyAgent' | 'gemini' | 'noAgent';
+  });
+
+  // Sidebar visible panels
+  const [visiblePanels, setVisiblePanels] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('user_project_sidebar_panels');
+      return stored ? JSON.parse(stored) : ['dashboard', 'tasks', 'calendar', 'meetings', 'resources'];
+    } catch {
+      return ['dashboard', 'tasks', 'calendar', 'meetings', 'resources'];
+    }
+  });
+
+  const [isSyncingWithServer, setIsSyncingWithServer] = useState(false);
+
+  const syncSettingsToServer = async (updatedFields: any) => {
+    try {
+      const currentFullSettings = {
+        defaultView: (updatedFields.defaultView || prefView) as 'board' | 'table' | 'graph' | 'sprints',
+        theme: updatedFields.theme || prefTheme,
+        timezone: updatedFields.timezone || prefTimezone,
+        aiMode: updatedFields.aiMode || aiMode,
+        defaultProject: updatedFields.defaultProject !== undefined ? updatedFields.defaultProject : prefProject,
+        chat: {
+          enabled: updatedFields.chatEnabled !== undefined ? updatedFields.chatEnabled : chatEnabled,
+          soundEnabled: updatedFields.chatSound !== undefined ? updatedFields.chatSound : chatSound,
+        },
+        notifications: {
+          subscribed: updatedFields.notifSubscribed !== undefined ? updatedFields.notifSubscribed : notifSubscribed,
+          email: updatedFields.notifEmail !== undefined ? updatedFields.notifEmail : notifEmail,
+          push: updatedFields.notifPush !== undefined ? updatedFields.notifPush : notifPush,
+        },
+        sidebar: {
+          visiblePanels: updatedFields.visiblePanels || visiblePanels,
+          isCollapsed: localStorage.getItem('user_project_sidebar_collapsed') === 'true',
+        }
+      };
+
+      await api.auth.updateUserSettings(currentFullSettings);
+    } catch (e) {
+      console.warn("Failed to synchronize settings with remote server", e);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      const loadRemoteSettings = async () => {
+        setIsSyncingWithServer(true);
+        try {
+          const fetched = await api.auth.getUserSettings();
+          if (fetched) {
+            if (fetched.defaultView) {
+              setPrefView(fetched.defaultView);
+              localStorage.setItem('user_project_default_view', fetched.defaultView);
+            }
+            if (fetched.theme) {
+              setPrefTheme(fetched.theme);
+              localStorage.setItem('user_project_theme', fetched.theme);
+            }
+            if (fetched.timezone) {
+              setPrefTimezone(fetched.timezone);
+              localStorage.setItem('user_project_timezone', fetched.timezone);
+            }
+            if (fetched.aiMode) {
+              setAiMode(fetched.aiMode);
+              localStorage.setItem('user_project_ai_mode', fetched.aiMode);
+            }
+            if (fetched.defaultProject !== undefined) {
+              setPrefProject(fetched.defaultProject);
+              localStorage.setItem('user_project_default_project', fetched.defaultProject);
+            }
+            if (fetched.chat) {
+              setChatEnabled(fetched.chat.enabled);
+              localStorage.setItem('user_project_chat_enabled', String(fetched.chat.enabled));
+              setChatSound(fetched.chat.soundEnabled);
+              localStorage.setItem('user_project_chat_sound', String(fetched.chat.soundEnabled));
+            }
+            if (fetched.notifications) {
+              setNotifSubscribed(fetched.notifications.subscribed);
+              localStorage.setItem('user_project_notif_subscribed', String(fetched.notifications.subscribed));
+              setNotifEmail(fetched.notifications.email);
+              localStorage.setItem('user_project_notif_email', String(fetched.notifications.email));
+              setNotifPush(fetched.notifications.push);
+              localStorage.setItem('user_project_notif_push', String(fetched.notifications.push));
+            }
+            if (fetched.sidebar) {
+              if (fetched.sidebar.visiblePanels) {
+                setVisiblePanels(fetched.sidebar.visiblePanels);
+                localStorage.setItem('user_project_sidebar_panels', JSON.stringify(fetched.sidebar.visiblePanels));
+              }
+              if (fetched.sidebar.isCollapsed !== undefined) {
+                localStorage.setItem('user_project_sidebar_collapsed', String(fetched.sidebar.isCollapsed));
+              }
+            }
+
+            if (onPreferencesChange) {
+              onPreferencesChange();
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to retrieve remote configuration, using local fallback", e);
+        } finally {
+          setIsSyncingWithServer(false);
+        }
+      };
+
+      loadRemoteSettings();
+    }
+  }, [isOpen]);
 
   // BYOK State
   const [apiKey, setApiKey] = useState(localStorage.getItem('user_gemini_api_key') || '');
@@ -88,18 +212,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleProfileSave = async (e: FormEvent) => {
     e.preventDefault();
-    if (userName.trim() === currentUser.name) return;
+    if (userName.trim() === currentUser.name && avatarUrl.trim() === (currentUser.avatarUrl || '')) return;
     setIsSavingProfile(true);
-    await onUpdateUser({ name: userName.trim() });
+    await onUpdateUser({ name: userName.trim(), avatarUrl: avatarUrl.trim() });
     setIsSavingProfile(false);
   };
 
   const updatePreference = (key: string, value: string) => {
     localStorage.setItem(key, value);
-    if (key === 'user_project_default_view') setPrefView(value);
-    if (key === 'user_project_default_project') setPrefProject(value);
-    if (key === 'user_project_theme') setPrefTheme(value);
-    if (key === 'user_project_timezone') setPrefTimezone(value);
+    let updated: any = {};
+    if (key === 'user_project_default_view') {
+      setPrefView(value);
+      updated.defaultView = value;
+    }
+    if (key === 'user_project_default_project') {
+      setPrefProject(value);
+      updated.defaultProject = value;
+    }
+    if (key === 'user_project_theme') {
+      setPrefTheme(value);
+      updated.theme = value;
+    }
+    if (key === 'user_project_timezone') {
+      setPrefTimezone(value);
+      updated.timezone = value;
+    }
+
+    syncSettingsToServer(updated);
 
     // Call callback to let parent know
     if (onPreferencesChange) {
@@ -186,6 +325,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <option value="dark">Deep Cyber Dark</option>
                         <option value="gray">Slate Industrial Gray</option>
                         <option value="light">Polished Paper Light</option>
+                        <option value="system">System Adaptation (system)</option>
                       </select>
                     </div>
 
@@ -200,6 +340,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       >
                         <option value="UTC">Coordinated Universal Time (UTC)</option>
                         <option value="IST">India Standard Time (IST - UTC+5:30)</option>
+                        <option value="EST">Eastern Standard Time (EST - UTC-5:00)</option>
                       </select>
                     </div>
 
@@ -216,6 +357,132 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             }
                         }} 
                     />
+
+                    {/* Chat settings section */}
+                    <div className="h-px bg-gray-700/50 my-4" />
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider text-[10px] flex items-center justify-between">
+                        <span>Chat Channels</span>
+                        {isSyncingWithServer && <span className="text-[9px] text-emerald-400 animate-pulse uppercase">Syncing...</span>}
+                      </h4>
+                      <div className="space-y-3">
+                        <ToggleSwitch 
+                          label="Enable Messaging Channels" 
+                          enabled={chatEnabled} 
+                          onChange={(enabled) => {
+                            setChatEnabled(enabled);
+                            localStorage.setItem('user_project_chat_enabled', String(enabled));
+                            syncSettingsToServer({ chatEnabled: enabled });
+                            if (onPreferencesChange) onPreferencesChange();
+                          }} 
+                        />
+                        <ToggleSwitch 
+                          label="Audio Sound Alerts" 
+                          enabled={chatSound} 
+                          onChange={(enabled) => {
+                            setChatSound(enabled);
+                            localStorage.setItem('user_project_chat_sound', String(enabled));
+                            syncSettingsToServer({ chatSound: enabled });
+                            if (onPreferencesChange) onPreferencesChange();
+                          }} 
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notifications settings section */}
+                    <div className="h-px bg-gray-700/50 my-4" />
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider text-[10px]">Notifications</h4>
+                      <div className="space-y-3">
+                        <ToggleSwitch 
+                          label="Global Subscription" 
+                          enabled={notifSubscribed} 
+                          onChange={(enabled) => {
+                            setNotifSubscribed(enabled);
+                            localStorage.setItem('user_project_notif_subscribed', String(enabled));
+                            syncSettingsToServer({ notifSubscribed: enabled });
+                            if (onPreferencesChange) onPreferencesChange();
+                          }} 
+                        />
+                        <ToggleSwitch 
+                          label="Email Dispatch Alerts" 
+                          enabled={notifEmail} 
+                          onChange={(enabled) => {
+                            setNotifEmail(enabled);
+                            localStorage.setItem('user_project_notif_email', String(enabled));
+                            syncSettingsToServer({ notifEmail: enabled });
+                            if (onPreferencesChange) onPreferencesChange();
+                          }} 
+                        />
+                        <ToggleSwitch 
+                          label="Push Pulse Broadcasts" 
+                          enabled={notifPush} 
+                          onChange={(enabled) => {
+                            setNotifPush(enabled);
+                            localStorage.setItem('user_project_notif_push', String(enabled));
+                            syncSettingsToServer({ notifPush: enabled });
+                            if (onPreferencesChange) onPreferencesChange();
+                          }} 
+                        />
+                      </div>
+                    </div>
+
+                    {/* AI Mode selector */}
+                    <div className="h-px bg-gray-700/50 my-4" />
+                    <div>
+                      <label htmlFor="prefAiMode" className="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider text-[10px]">AI Processor Profile</label>
+                      <select 
+                        id="prefAiMode"
+                        value={aiMode}
+                        onChange={(e) => {
+                          const val = e.target.value as 'graphyAgent' | 'gemini' | 'noAgent';
+                          setAiMode(val);
+                          localStorage.setItem('user_project_ai_mode', val);
+                          syncSettingsToServer({ aiMode: val });
+                          if (onPreferencesChange) onPreferencesChange();
+                        }}
+                        className="w-full bg-[#1C2326] border border-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="noAgent">Direct Control Mode (noAgent)</option>
+                        <option value="gemini">Gemini Neural Processor (gemini)</option>
+                        <option value="graphyAgent">Graphy Autonomous Co-Pilot (graphyAgent)</option>
+                      </select>
+                    </div>
+
+                    {/* Sidebar Panels settings section */}
+                    <div className="h-px bg-gray-700/50 my-4" />
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider text-[10px]">Active Sidebar Panels</h4>
+                      <div className="grid grid-cols-2 gap-3 pb-2">
+                        {['dashboard', 'tasks', 'calendar', 'meetings', 'resources'].map((panel) => {
+                          const isPanelVisible = visiblePanels.includes(panel);
+                          return (
+                            <label key={panel} className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 hover:text-white transition-colors">
+                              <input 
+                                type="checkbox"
+                                checked={isPanelVisible}
+                                onChange={(e) => {
+                                  let nextPanels;
+                                  if (e.target.checked) {
+                                    nextPanels = [...visiblePanels, panel];
+                                  } else {
+                                    nextPanels = visiblePanels.filter(p => p !== panel);
+                                  }
+                                  setVisiblePanels(nextPanels);
+                                  localStorage.setItem('user_project_sidebar_panels', JSON.stringify(nextPanels));
+                                  syncSettingsToServer({ visiblePanels: nextPanels });
+                                  if (onPreferencesChange) onPreferencesChange();
+                                }}
+                                className="w-4 h-4 rounded border-gray-700 text-emerald-500 bg-[#1C2326] accent-emerald-500 focus:ring-0 cursor-pointer"
+                              />
+                              <span className="capitalize">{panel === 'resources' ? 'Mesh & Reports' : panel}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-gray-700/50 my-4" />
 
                     <ToggleSwitch 
                         label="AI Active Processing" 
@@ -303,21 +570,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-6">
                 <h3 className="text-lg font-bold text-white">Profile Setup</h3>
                  <form onSubmit={handleProfileSave} className="p-4 bg-gray-800/50 rounded-lg space-y-4">
-                    <div>
-                        <label htmlFor="name" className="block text-xs font-medium text-white">Full Name</label>
-                        <input
-                            id="name"
-                            type="text"
-                            value={userName}
-                            onChange={(e) => setUserName(e.target.value)}
-                            className="mt-1 w-full max-w-sm px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-xs font-medium"
-                        />
-                    </div>
-                     <div className="flex justify-start">
-                        <button type="submit" disabled={isSavingProfile || userName === currentUser.name} className="px-4 py-2 bg-gray-300 text-black font-semibold rounded-lg shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:bg-gray-500 disabled:cursor-not-allowed text-xs uppercase tracking-wider font-bold">
-                            {isSavingProfile ? 'Saving...' : 'Save Changes'}
-                        </button>
-                    </div>
+                     <div className="flex items-center gap-4 pb-2 border-b border-gray-700/50">
+                         <UserAvatar 
+                           user={{ ...currentUser, name: userName || currentUser.name, avatarUrl: avatarUrl }} 
+                           className="w-16 h-16 text-xl font-bold ring-4 ring-emerald-500/20" 
+                         />
+                         <div>
+                             <h4 className="text-sm font-bold text-white uppercase tracking-wider">{userName || 'Anonymous Node'}</h4>
+                             <p className="text-[10px] text-gray-400 font-mono">0x{currentUser.id.slice(0, 8).toUpperCase()}</p>
+                         </div>
+                     </div>
+                     <div>
+                         <label htmlFor="name" className="block text-xs font-medium text-white">Full Name</label>
+                         <input
+                             id="name"
+                             type="text"
+                             value={userName}
+                             onChange={(e) => setUserName(e.target.value)}
+                             className="mt-1 w-full max-w-sm px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-xs font-medium"
+                         />
+                     </div>
+                     <div>
+                         <label htmlFor="avatarUrl" className="block text-xs font-medium text-white">Profile Picture URL</label>
+                         <input
+                             id="avatarUrl"
+                             type="text"
+                             value={avatarUrl}
+                             onChange={(e) => setAvatarUrl(e.target.value)}
+                             placeholder="https://example.com/photo.jpg"
+                             className="mt-1 w-full max-w-sm px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 bg-[#1C2326] text-white text-xs font-medium"
+                         />
+                         <p className="text-[9px] text-gray-500 font-sans mt-1">Provide an image URL to customize your visual node profile.</p>
+                     </div>
+                      <div className="flex justify-start">
+                         <button 
+                           type="submit" 
+                           disabled={isSavingProfile || (userName.trim() === currentUser.name && avatarUrl.trim() === (currentUser.avatarUrl || ''))} 
+                           className="px-4 py-2 bg-gray-300 text-black font-semibold rounded-lg shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:bg-gray-500 disabled:cursor-not-allowed text-xs uppercase tracking-wider font-bold"
+                         >
+                             {isSavingProfile ? 'Saving...' : 'Save Changes'}
+                         </button>
+                     </div>
                  </form>
               </div>
             )}

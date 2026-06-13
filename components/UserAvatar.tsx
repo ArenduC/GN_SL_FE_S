@@ -23,6 +23,8 @@ const getColor = (name: string): string => {
 };
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({ user, className, title, isOnline = false }) => {
+  const [imgError, setImgError] = React.useState(false);
+
   if (!user) {
     return (
       <div
@@ -36,13 +38,27 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({ user, className, title, 
 
   const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
   const color = getColor(user.name);
+  const avatar = user.avatarUrl || (user as any).avatar_url;
+  const showImage = avatar && !imgError;
   
   return (
     <div
-      className={`relative flex items-center justify-center rounded-full text-white font-bold ${color} ${className}`}
+      className={`relative flex-shrink-0 flex items-center justify-center ${className}`}
       title={title || user.name}
     >
-      {initial}
+      <div className={`w-full h-full flex items-center justify-center rounded-full overflow-hidden text-white font-bold ${showImage ? '' : color}`}>
+        {showImage ? (
+          <img 
+            src={avatar} 
+            alt={user.name} 
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover rounded-full"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          initial
+        )}
+      </div>
       {isOnline && (
         <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-[#131C1B]" title="Online"></span>
       )}

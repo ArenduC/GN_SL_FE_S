@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { User, Project, NewTaskData, Task, AppState, ChatMessage, ProjectInviteLink, UserRole, Subtask, Sprint, FilterSegment, Column, TaskHistory } from '../types';
+import { User, Project, NewTaskData, Task, AppState, ChatMessage, ProjectInviteLink, UserRole, Subtask, Sprint, FilterSegment, Column, TaskHistory, UserSettings } from '../types';
 import { Session, RealtimeChannel, AuthChangeEvent, User as SupabaseUser } from '@supabase/supabase-js';
 import { taskService } from './task.service';
 import client from '../api/client';
@@ -97,10 +97,20 @@ const getSession = async () => {
     }
 };
 
+const normalizeUser = (u: any): User => {
+    if (!u) return u;
+    return {
+        id: u.id,
+        name: u.name || 'Anonymous User',
+        role: u.role || UserRole.MEMBER,
+        avatarUrl: u.avatarUrl || u.avatar_url || ''
+    };
+};
+
 const getUserProfile = async (userId: string): Promise<User | null> => {
     try {
         const response = await client.get(ENDPOINTS.USER.profile(userId), { silent: true } as any);
-        return response.data as User;
+        return normalizeUser(response.data);
     } catch (err: any) {
         if (err.response?.status !== 404) {
             console.error(`[API Error] getUserProfile(${userId}):`, err.message || err);
@@ -113,29 +123,62 @@ const getUserProfile = async (userId: string): Promise<User | null> => {
 
 const createUserProfile = async (supabaseUser: SupabaseUser): Promise<User> => {
     const name = supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'New User';
+    const avatarUrl = supabaseUser.user_metadata?.avatar_url || '';
     try {
         const response = await client.post(`/users/${supabaseUser.id}/profile`, {
             name,
-            role: UserRole.MEMBER
+            role: UserRole.MEMBER,
+            avatar_url: avatarUrl // Pass database-compatible property name on creation
         });
-        return response.data as User;
+        return normalizeUser(response.data);
     } catch (err: any) {
         console.warn("Failed to create profile via explicit API path, using fallback", err.message);
         return {
             id: supabaseUser.id,
             name,
             role: UserRole.MEMBER,
-            avatarUrl: ''
+            avatarUrl: avatarUrl
         };
     }
 };
 
-const updateUserProfile = async (userId: string, updates: { name: string }): Promise<User> => {
+const updateUserProfile = async (userId: string, updates: { name: string; avatarUrl?: string }): Promise<User> => {
     try {
-        const response = await client.put(ENDPOINTS.USER.profile(userId), updates);
-        return response.data as User;
+        const requestData = {
+            name: updates.name,
+            avatar_url: updates.avatarUrl, // Database column is snake_case
+            avatarUrl: updates.avatarUrl  // Also send camelCase just in case
+        };
+        const response = await client.put(ENDPOINTS.USER.profile(userId), requestData);
+        return normalizeUser(response.data);
     } catch (err: any) {
         console.error("updateUserProfile failed via API:", err.message || err);
+        throw err;
+    }
+};
+
+const getUserSettings = async (): Promise<UserSettings> => {
+    try {
+        const response = await client.get(ENDPOINTS.USER.getSettings);
+        if (response?.data?.success && response.data.data) {
+            return response.data.data as UserSettings;
+        }
+        throw new Error("Invalid response format from get-settings");
+    } catch (err: any) {
+        console.error("getUserSettings failed:", err.message || err);
+        throw err;
+    }
+};
+
+const updateUserSettings = async (settings: Partial<UserSettings>): Promise<UserSettings> => {
+    try {
+        const response = await client.post(ENDPOINTS.USER.updateSettings, { settings });
+        if (response?.data?.success && response.data.data?.settings) {
+            return response.data.data.settings as UserSettings;
+        }
+        throw new Error("Invalid response format from update-settings");
+    } catch (err: any) {
+        console.error("updateUserSettings failed:", err.message || err);
         throw err;
     }
 };
@@ -703,7 +746,8 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
         };
     }).filter(Boolean) as Project[];
 
-    const usersRecord = arrayToRecord(usersData as User[]);
+    const processedUsers = (usersData || []).map((u: any) => normalizeUser(u));
+    const usersRecord = arrayToRecord(processedUsers);
     const projectsRecord = arrayToRecord(processedProjects);
     const projectOrder = Array.isArray(rpcData.projectOrder)
         ? rpcData.projectOrder
@@ -1142,6 +1186,8 @@ export const api = {
         getUserProfile,
         createUserProfile,
         updateUserProfile,
+        getUserSettings,
+        updateUserSettings,
         signOut,
         signInWithPassword,
         signInWithGoogle,
