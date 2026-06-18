@@ -1042,7 +1042,7 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
         </div>
 
         {/* Right properties Column - Name: "Contextual Data" (Exactly 30% width) */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-0 self-start">
           <div className="bg-white/[0.01] border border-white/5 rounded p-3 space-y-4">
             
             {/* Tab selection headers */}

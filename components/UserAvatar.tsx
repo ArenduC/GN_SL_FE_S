@@ -38,12 +38,13 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({ user, className, title, 
 
   const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
   const color = getColor(user.name);
-  const avatar = user.avatarUrl || (user as any).avatar_url;
+  const defaultAvatar = `https://api.dicebear.com/7.x/lorelei/svg?seed=${encodeURIComponent(user.name || 'user')}`;
+  const avatar = user.avatarUrl || (user as any).avatar_url || defaultAvatar;
   const showImage = avatar && !imgError;
   
   return (
     <div
-      className={`relative flex-shrink-0 flex items-center justify-center ${className}`}
+      className={`relative flex-shrink-0 flex items-center justify-center rounded-full ${className}`}
       title={title || user.name}
     >
       <div className={`w-full h-full flex items-center justify-center rounded-full overflow-hidden text-white font-bold ${showImage ? '' : color}`}>

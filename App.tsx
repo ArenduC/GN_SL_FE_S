@@ -288,7 +288,16 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
         try {
           const profile = await api.auth.getUserProfile(session.user.id);
           if (profile) {
-            setCurrentUser(profile);
+            const sessionAvatar = session.user.user_metadata?.avatar_url || (session.user as any).avatarUrl || '';
+            if (!profile.avatarUrl && sessionAvatar) {
+              const updatedProfile = { ...profile, avatarUrl: sessionAvatar };
+              setCurrentUser(updatedProfile);
+              // Save the session avatar back to database profile
+              api.auth.updateUserProfile(profile.id, { name: profile.name, avatarUrl: sessionAvatar })
+                 .catch(err => console.warn("[Background Profile Sync] Failed to save retrieved session avatar to DB:", err));
+            } else {
+              setCurrentUser(profile);
+            }
           } else {
             const newProfile = await api.auth.createUserProfile(session.user);
             setCurrentUser(newProfile);
@@ -1221,6 +1230,14 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             [class*="bg-emerald-500/10"], [class*="bg-emerald-500\\/10"] { background-color: #D1FAE5 !important; color: #065F46 !important; }
             [class*="bg-rose-500/10"], [class*="bg-rose-500\\/10"] { background-color: #FFE4E6 !important; color: #9F1239 !important; }
             [class*="bg-sky-500/10"], [class*="bg-sky-500\\/10"] { background-color: #E0F2FE !important; color: #075985 !important; }
+            [class*="bg-red-500/10"], [class*="bg-red-500\\/10"] { background-color: #FFE4E6 !important; color: #9F1239 !important; }
+            [class*="bg-orange-500/10"], [class*="bg-orange-500\\/10"] { background-color: #FFEDD5 !important; color: #9A3412 !important; }
+            [class*="bg-amber-500/10"], [class*="bg-amber-500\\/10"] { background-color: #FEF3C7 !important; color: #92400E !important; }
+            [class*="bg-blue-500/10"], [class*="bg-blue-500\\/10"] { background-color: #DBEAFE !important; color: #1E40AF !important; }
+
+            /* Avatar & Online status ring override for light mode */
+            [class*="ring-[#131C1B]"], [class*="ring-[#131c1b]"] { --tw-ring-color: #FFFFFF !important; }
+            [class*="ring-white/10"], [class*="ring-white\\/10"] { --tw-ring-color: rgba(0, 0, 0, 0.1) !important; }
 
             /* Dropdown lists: Ensure they have white backgrounds, gray boundaries, and dark texts */
             [class*="bg-[#0E1314]"], [class*="bg-[#0e1314]"] {

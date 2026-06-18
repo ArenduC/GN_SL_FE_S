@@ -913,7 +913,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
             </div>
 
             {/* Right 30% Properties Column - Named: "Contextual Data" */}
-            <div className="space-y-4">
+            <div className="space-y-4 md:sticky md:top-0 self-start">
               <div className="bg-white/[0.01] border border-white/5 rounded p-3 space-y-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500 border-b border-white/5 pb-1">Contextual Data</h3>
                 

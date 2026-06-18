@@ -9,10 +9,10 @@ interface ProjectConfirmationModalProps {
 }
 
 const priorityStyles: Record<TaskPriority, string> = {
-  [TaskPriority.URGENT]: 'bg-gray-200 text-black font-bold',
-  [TaskPriority.HIGH]: 'bg-gray-400 text-black',
-  [TaskPriority.MEDIUM]: 'bg-gray-600 text-white',
-  [TaskPriority.LOW]: 'bg-gray-800 text-gray-400',
+  [TaskPriority.URGENT]: 'bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold',
+  [TaskPriority.HIGH]: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  [TaskPriority.MEDIUM]: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  [TaskPriority.LOW]: 'bg-white/5 text-gray-500 border border-white/5',
 };
 
 export const ProjectConfirmationModal: React.FC<ProjectConfirmationModalProps> = ({ plan, onConfirm, onCancel }) => {

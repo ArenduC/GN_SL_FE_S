@@ -296,7 +296,7 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
         </div>
 
         {/* Right Side Settings Column (30% - 3 spans) */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="lg:col-span-3 space-y-4 lg:sticky lg:top-0 self-start">
           <div className="bg-[#0F1517] border border-white/5 rounded-lg p-4 space-y-4 shadow-sm">
             <h3 className="text-[9px] font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-1 select-none">Contextual parameters</h3>
             

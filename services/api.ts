@@ -82,7 +82,10 @@ const getSession = async () => {
             user: {
                 id: userData.id,
                 email: userData.email,
-                user_metadata: { name: userData.name || '' },
+                user_metadata: { 
+                    name: userData.name || '',
+                    avatar_url: userData.avatarUrl || userData.avatar_url || ''
+                },
                 app_metadata: { recovery: !!userData.is_recovering }
             } as any
         };
@@ -291,7 +294,10 @@ const signInWithPassword = async ({ email, password }: { email: string, password
         const mappedUser = {
             id: userRaw?.id || userRaw?.userId || userRaw?.user_id || '',
             email: userRaw?.email || email,
-            user_metadata: { name: userRaw?.name || userRaw?.user_metadata?.name || '' },
+            user_metadata: { 
+                name: userRaw?.name || userRaw?.user_metadata?.name || '',
+                avatar_url: userRaw?.avatarUrl || userRaw?.avatar_url || userRaw?.user_metadata?.avatar_url || ''
+            },
             app_metadata: { recovery: !!(userRaw?.is_recovering || userRaw?.app_metadata?.recovery) }
         };
         
@@ -329,11 +335,15 @@ const signInWithGoogle = async ({ credential }: { credential: string }) => {
         const fallbackEmail = decoded?.email || '';
         const fallbackName = decoded?.name || decoded?.given_name || '';
         const fallbackId = decoded?.sub || '';
+        const fallbackAvatar = decoded?.picture || '';
 
         const mappedUser = {
             id: userRaw?.id || userRaw?.userId || userRaw?.user_id || fallbackId,
             email: userRaw?.email || fallbackEmail,
-            user_metadata: { name: userRaw?.name || userRaw?.user_metadata?.name || fallbackName },
+            user_metadata: { 
+                name: userRaw?.name || userRaw?.user_metadata?.name || fallbackName,
+                avatar_url: userRaw?.avatarUrl || userRaw?.avatar_url || userRaw?.user_metadata?.avatar_url || fallbackAvatar
+            },
             app_metadata: { recovery: !!(userRaw?.is_recovering || userRaw?.app_metadata?.recovery || decoded?.is_recovering) }
         };
         
