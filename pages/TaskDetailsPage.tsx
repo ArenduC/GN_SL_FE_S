@@ -7,6 +7,9 @@ import { useConfirmation } from '../App';
 import { JsonSyntaxHighlighter } from '../components/JsonSyntaxHighlighter';
 import { api } from '../services/api';
 import { RichTextEditor } from '../components/RichTextEditor';
+import { TaskHierarchyVisualizer } from '../components/TaskHierarchyVisualizer';
+import { TaskSchemaGraphVisualizer } from '../components/TaskSchemaGraphVisualizer';
+import { useNavigate } from 'react-router-dom';
 
 interface TaskDetailsPageProps {
   task: Task;
@@ -26,6 +29,8 @@ interface TaskDetailsPageProps {
   aiFeaturesEnabled: boolean;
   onAddTask?: (taskData: NewTaskData) => Promise<void>;
   columns?: Column[];
+  allTasks?: Task[];
+  projectId?: string;
 }
 
 type AIGenerationState = 'idle' | 'loading' | 'success' | 'error';
@@ -482,8 +487,9 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ task, onAddComment, c
 };
 
 export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({ 
-  task, currentUser, users, projectMembers, allProjectTags, sprints, onlineUsers, projectName, onClose, onUpdateTask, onUpdateSubtask, onDeleteSubtask, onAddSubtasks, onAddComment, aiFeaturesEnabled, onAddTask, columns 
+  task, currentUser, users, projectMembers, allProjectTags, sprints, onlineUsers, projectName, onClose, onUpdateTask, onUpdateSubtask, onDeleteSubtask, onAddSubtasks, onAddComment, aiFeaturesEnabled, onAddTask, columns, allTasks = [], projectId 
 }) => {
+  const navigate = useNavigate();
   const [editedTask, setEditedTask] = useState<Task>(task);
   const [aiState, setAiState] = useState<AIGenerationState>('idle');
   const [aiError, setAiError] = useState<string | null>(null);
@@ -494,6 +500,9 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
   const [isTagInputFocused, setIsTagInputFocused] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showVisualizer, setShowVisualizer] = useState(false);
+  const [activeTab, setActiveTab] = useState<'context' | 'reference'>('context');
+  const [visualizerMode, setVisualizerMode] = useState<'graph' | 'spawner'>('graph');
   const requestConfirmation = useConfirmation();
 
   useEffect(() => {
@@ -533,52 +542,25 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
     showToast(`Converted to ${nextType === 'bug' ? 'Bug' : 'Task'}!`);
   };
 
-  const handleCreateDerivation = async () => {
-    if (!onAddTask) return;
+  const handleCreateDerivation = () => {
+    if (!projectId) return;
     const targetType = editedTask.taskType === 'bug' ? 'task' : 'bug';
     
     const derivedTitle = `${targetType === 'bug' ? 'Bug' : 'Task'} derived from ${editedTask.ticketId}: ${editedTask.title.substring(0, 30)}`;
     const derivedDesc = `**References parent:** [${editedTask.ticketId}]\n\n**Parent Description:**\n${editedTask.description || 'None'}`;
     
-    const parentColumnId = columns?.find(c => c.taskIds.includes(editedTask.id))?.id || columns?.[0]?.id || '';
-    if (!parentColumnId) {
-      showToast('Error: Column placement missing for derived task.');
-      return;
-    }
-
-    const newObj: NewTaskData = {
+    const query = new URLSearchParams({
+      parentId: editedTask.id,
+      taskType: targetType,
       title: derivedTitle,
       description: derivedDesc,
       priority: editedTask.priority,
-      columnId: parentColumnId,
-      assigneeId: editedTask.assignee?.id || undefined,
-      sprintId: editedTask.sprintId || null,
-      taskType: targetType,
-      referenceNo: editedTask.ticketId
-    };
-    
-    try {
-      await onAddTask(newObj);
-      
-      const linkLog: TaskHistory = {
-        id: `temp-h-link-${Date.now()}`,
-        user: currentUser,
-        createdAt: new Date().toISOString(),
-        changeDescription: `derived and linked related ${targetType === 'bug' ? 'Bug' : 'Task'} (${editedTask.ticketId})`
-      };
-      
-      const updatedOrigin = {
-        ...editedTask,
-        history: [linkLog, ...(editedTask.history || [])]
-      };
-      setEditedTask(updatedOrigin);
-      await onUpdateTask(updatedOrigin);
-      
-      showToast(`Created related ${targetType === 'bug' ? 'Bug' : 'Task'}!`);
-    } catch (err) {
-      console.error(err);
-      showToast(`Failed to derive ${targetType}.`);
-    }
+      assigneeId: editedTask.assignee?.id || '',
+      sprintId: editedTask.sprintId || '',
+    }).toString();
+
+    navigate(`/project/${projectId}/create-task?${query}`);
+    showToast(`Redirecting to full form for linked ${targetType === 'bug' ? 'Bug' : 'Task'}...`);
   };
 
   const taskCreator = users.find(u => u.id === task.creatorId);
@@ -759,6 +741,101 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
         
         {/* Left column (Main Details & Discussion) */}
         <div className="space-y-4 min-w-0">
+          {/* Node Graph Toggle Option */}
+          <div id="visualizer-toggle-header" className="flex items-center justify-between bg-black/20 px-4 py-2.5 rounded-lg border border-white/5 shadow-inner">
+            <div className="flex items-center gap-2">
+              <span className={`h-1.5 w-1.5 rounded-full ${showVisualizer ? 'bg-emerald-400 animate-pulse' : 'bg-gray-650'}`} />
+              <span className="text-[10px] font-mono uppercase font-black tracking-wider text-gray-400">Dependency & Connection Spawner</span>
+            </div>
+            <button
+              onClick={() => setShowVisualizer(!showVisualizer)}
+              className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase transition-all tracking-wider cursor-pointer ${
+                showVisualizer 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' 
+                  : 'bg-emerald-500 text-black border-emerald-500 hover:bg-emerald-600'
+              }`}
+            >
+              {showVisualizer ? 'Hide spawner form' : 'Spawn Linked Node / Graph'}
+            </button>
+          </div>
+
+          {showVisualizer && (
+            <div className="space-y-3">
+              {/* Visualizer Mode tabs */}
+              <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-lg border border-white/5 inline-flex select-none">
+                <button
+                  type="button"
+                  onClick={() => setVisualizerMode('graph')}
+                  className={`text-[9.5px] font-mono font-bold uppercase tracking-wider px-3 py-1 rounded transition-all cursor-pointer ${
+                    visualizerMode === 'graph'
+                      ? 'bg-emerald-500 text-black shadow-md font-black'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🕸️ Relational Schema Graph
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisualizerMode('spawner')}
+                  className={`text-[9.5px] font-mono font-bold uppercase tracking-wider px-3 py-1 rounded transition-all cursor-pointer ${
+                    visualizerMode === 'spawner'
+                      ? 'bg-emerald-500 text-black shadow-md font-black'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🌱 Dependency Spawner Form
+                </button>
+              </div>
+
+              {visualizerMode === 'graph' ? (
+                <TaskSchemaGraphVisualizer
+                  currentTask={editedTask}
+                  allTasks={allTasks}
+                  projectMembers={projectMembers}
+                  onSelectTask={(targetTask) => {
+                    if (projectId) {
+                      navigate(`/project/${projectId}/task/${targetTask.id}`);
+                    }
+                  }}
+                  onClose={() => setShowVisualizer(false)}
+                />
+              ) : (
+                <TaskHierarchyVisualizer
+                  currentTask={editedTask}
+                  allTasks={allTasks}
+                  projectMembers={projectMembers}
+                  currentColumnId={columns?.find(c => c.taskIds.includes(editedTask.id))?.id || columns?.[0]?.id || ''}
+                  sprintId={editedTask.sprintId}
+                  onSelectTask={(targetTask) => {
+                    if (projectId) {
+                      navigate(`/project/${projectId}/task/${targetTask.id}`);
+                    }
+                  }}
+                  onAddTask={async (td) => {
+                    if (projectId) {
+                      const query = new URLSearchParams({
+                        parentId: td.parentId || '',
+                        taskType: td.taskType || 'task',
+                        title: td.title || '',
+                        description: td.description || '',
+                        priority: td.priority || 'MEDIUM',
+                        assigneeId: td.assigneeId || '',
+                        sprintId: td.sprintId || '',
+                      }).toString();
+                      navigate(`/project/${projectId}/create-task?${query}`);
+                      showToast("Redirecting to full form for linked child node...");
+                    }
+                  }}
+                  onOpenFullCreatePage={() => {
+                    if (projectId) {
+                      navigate(`/project/${projectId}/create-task?parentId=${editedTask.id}`);
+                    }
+                  }}
+                />
+              )}
+            </div>
+          )}
+
           <div className="space-y-4 w-full">
             
             {/* Title display */}
@@ -967,107 +1044,254 @@ export const TaskDetailsPage: React.FC<TaskDetailsPageProps> = ({
         {/* Right properties Column - Name: "Contextual Data" (Exactly 30% width) */}
         <div className="space-y-4">
           <div className="bg-white/[0.01] border border-white/5 rounded p-3 space-y-4">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500 border-b border-white/5 pb-1">Contextual Data</h3>
             
-            {/* Assignee */}
-            <div>
-              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Assignee</label>
-              <div className="relative">
-                  <select
-                    value={editedTask.assignee?.id || ''}
-                    onChange={handleAssigneeChange}
-                    className="w-full pl-2 pr-8 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none appearance-none rounded cursor-pointer"
-                  >
-                    <option value="">Unassigned</option>
-                    {projectMembers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                       <UserIcon className="w-3.5 h-3.5" />
-                  </div>
-              </div>
-            </div>
-
-            {/* Priority */}
-            <div>
-              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Priority</label>
-              <select
-                value={editedTask.priority}
-                onChange={handlePriorityChange}
-                className="w-full px-2 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none rounded cursor-pointer uppercase font-mono text-[10px]"
+            {/* Tab selection headers */}
+            <div className="flex border-b border-white/5 pb-1 gap-4 select-none">
+              <button
+                type="button"
+                onClick={() => setActiveTab('context')}
+                className={`text-[10px] font-bold uppercase tracking-[0.1em] pb-1 cursor-pointer transition-colors relative ${
+                  activeTab === 'context' 
+                    ? 'text-white' 
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
               >
-                {Object.values(TaskPriority).map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-
-            {/* Sprint */}
-            <div>
-              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Sprint</label>
-              <select
-                value={editedTask.sprintId || ''}
-                onChange={handleSprintChange}
-                className="w-full px-2 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none rounded cursor-pointer"
-              >
-                <option value="">Backlog</option>
-                {(sprints || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-
-            {/* Due date */}
-            <div>
-              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1 select-none">Due Cycle</label>
-              <div className="bg-[#1C2326] border border-white/5 rounded p-0.5">
-                  <EditableField
-                      value={editedTask.dueDate || ''}
-                      onSave={(newDate) => handleUpdateField('dueDate', newDate)}
-                      type="date"
-                      textClassName="text-xs text-white px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-center block"
-                      inputClassName="text-xs p-0.5 rounded bg-black/40 border-none text-white text-center w-full focus:outline-none"
-                      placeholder="No Due Date"
-                  />
-              </div>
-            </div>
-
-            {/* Reference */}
-            <div>
-              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1 select-none">Reference ID</label>
-              <div className="bg-[#1C2326] border border-white/5 rounded p-0.5">
-                  <EditableField
-                      value={editedTask.referenceNo || ''}
-                      onSave={(newRef) => handleUpdateField('referenceNo', newRef)}
-                      textClassName="text-xs text-white px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-center block"
-                      inputClassName="text-xs p-0.5 rounded bg-black/40 border-none text-white text-center w-full focus:outline-none"
-                      placeholder="Set Reference"
-                  />
-              </div>
-            </div>
-
-            {/* Converter and derivation actions */}
-            <div className="pt-2 border-t border-white/5 space-y-2">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500 block">Actions</span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleConvertType}
-                  className="w-full text-[9px] font-bold uppercase bg-[#1C2326] border border-white/5 hover:bg-[#2A3438] hover:text-white px-2 py-1 rounded transition-all cursor-pointer text-center"
-                >
-                  Type 🔄
-                </button>
-
-                {onAddTask && (
-                  <button
-                    type="button"
-                    onClick={handleCreateDerivation}
-                    className={`w-full text-[9px] font-bold uppercase px-2 py-1 rounded transition-all cursor-pointer text-center ${
-                      editedTask.taskType === 'bug' 
-                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
-                        : 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20'
-                    }`}
-                  >
-                    Derive ➕
-                  </button>
+                Context Data
+                {activeTab === 'context' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-emerald-500" />
                 )}
-              </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('reference')}
+                className={`text-[10px] font-bold uppercase tracking-[0.1em] pb-1 cursor-pointer transition-colors relative ${
+                  activeTab === 'reference' 
+                    ? 'text-white' 
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                Reference
+                {activeTab === 'reference' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-emerald-500" />
+                )}
+              </button>
             </div>
+            
+            {activeTab === 'context' ? (
+              <div className="space-y-4 animate-fade-in">
+                {/* Assignee */}
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Assignee</label>
+                  <div className="relative">
+                      <select
+                        value={editedTask.assignee?.id || ''}
+                        onChange={handleAssigneeChange}
+                        className="w-full pl-2 pr-8 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none appearance-none rounded cursor-pointer"
+                      >
+                        <option value="">Unassigned</option>
+                        {projectMembers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                      </select>
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                           <UserIcon className="w-3.5 h-3.5" />
+                      </div>
+                  </div>
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Priority</label>
+                  <select
+                    value={editedTask.priority}
+                    onChange={handlePriorityChange}
+                    className="w-full px-2 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none rounded cursor-pointer uppercase font-mono text-[10px]"
+                  >
+                    {Object.values(TaskPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+
+                {/* Sprint */}
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Sprint</label>
+                  <select
+                    value={editedTask.sprintId || ''}
+                    onChange={handleSprintChange}
+                    className="w-full px-2 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none rounded cursor-pointer"
+                  >
+                    <option value="">Backlog</option>
+                    {(sprints || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+
+                {/* Due date */}
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1 select-none">Due Cycle</label>
+                  <div className="bg-[#1C2326] border border-white/5 rounded p-0.5">
+                      <EditableField
+                          value={editedTask.dueDate || ''}
+                          onSave={(newDate) => handleUpdateField('dueDate', newDate)}
+                          type="date"
+                          textClassName="text-xs text-white px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-center block"
+                          inputClassName="text-xs p-0.5 rounded bg-black/40 border-none text-white text-center w-full focus:outline-none"
+                          placeholder="No Due Date"
+                      />
+                  </div>
+                </div>
+
+                {/* Converter and derivation actions */}
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500 block">Actions</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={handleConvertType}
+                      className="w-full text-[9px] font-bold uppercase bg-[#1C2326] border border-white/5 hover:bg-[#2A3438] hover:text-white px-2 py-1 rounded transition-all cursor-pointer text-center"
+                    >
+                      Type 🔄
+                    </button>
+
+                    {onAddTask && (
+                      <button
+                        type="button"
+                        onClick={handleCreateDerivation}
+                        className={`w-full text-[9px] font-bold uppercase px-2 py-1 rounded transition-all cursor-pointer text-center ${
+                          editedTask.taskType === 'bug' 
+                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
+                            : 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20'
+                        }`}
+                      >
+                        Derive ➕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 animate-fade-in">
+                {/* Reference No / ID */}
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1 select-none">Reference ID</label>
+                  <div className="bg-[#1C2326] border border-white/5 rounded p-0.5">
+                      <EditableField
+                          value={editedTask.referenceNo || ''}
+                          onSave={(newRef) => handleUpdateField('referenceNo', newRef)}
+                          textClassName="text-xs text-white px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-center block"
+                          inputClassName="text-xs p-0.5 rounded bg-black/40 border-none text-white text-center w-full focus:outline-none"
+                          placeholder="Set Reference"
+                      />
+                  </div>
+                </div>
+
+                {/* Parent Link Option styled elegantly */}
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1 select-none">Linked Parent Task</label>
+                  {(() => {
+                    const parentTask = (allTasks || []).find(t => t.id === editedTask.parentId);
+                    return parentTask ? (
+                      <div className="flex items-center justify-between gap-2 bg-[#1C2326] p-2 rounded border border-white/5 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (projectId) {
+                              navigate(`/project/${projectId}/task/${parentTask.id}`);
+                            }
+                          }}
+                          className="min-w-0 text-left text-xs text-emerald-300 hover:text-emerald-400 font-medium truncate flex-grow cursor-pointer"
+                        >
+                          {parentTask.ticketId ? `[${parentTask.ticketId}] ` : ''}{parentTask.title}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateField('parentId', null)}
+                          className="text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase px-1 transition-all"
+                          title="Remove Parent Link"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        value={editedTask.parentId || ''}
+                        onChange={(e) => handleUpdateField('parentId', e.target.value || null)}
+                        className="w-full px-2 py-1 bg-[#1C2326] text-white text-xs border border-white/5 focus:ring-0 focus:outline-none rounded cursor-pointer truncate"
+                      >
+                        <option value="">No parent task linked</option>
+                        {(allTasks || [])
+                          .filter(t => t.id !== editedTask.id)
+                          .map(t => (
+                            <option key={t.id} value={t.id}>
+                              {t.ticketId ? `[${t.ticketId}] ` : ''}{t.title}
+                            </option>
+                          ))}
+                      </select>
+                    );
+                  })()}
+                </div>
+
+                {/* Children lists */}
+                <div>
+                  {(() => {
+                    const childTasks = (allTasks || []).filter(t => t.parentId === editedTask.id);
+                    return (
+                      <>
+                        <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 select-none">Child Tasks / Dependencies ({childTasks.length})</label>
+                        {childTasks.length === 0 ? (
+                          <div className="text-[10px] text-gray-500 bg-[#1C2326]/30 p-2.5 rounded text-center border border-dashed border-white/5 select-none">
+                            No active child dependencies linked.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
+                            {childTasks.map(child => (
+                              <div key={child.id} className="flex items-center justify-between gap-1.5 bg-[#1C2326] p-1.5 rounded border border-white/5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (projectId) {
+                                      navigate(`/project/${projectId}/task/${child.id}`);
+                                    }
+                                  }}
+                                  className="min-w-0 text-left text-[11px] text-blue-400 hover:text-blue-300 font-medium truncate flex-grow cursor-pointer"
+                                >
+                                  {child.ticketId ? `[${child.ticketId}] ` : ''}{child.title}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const childToUpdate = { ...child, parentId: null };
+                                    onUpdateTask(childToUpdate);
+                                  }}
+                                  className="text-gray-500 hover:text-red-400 text-[10px] px-1 transition-all"
+                                  title="Unlink dependency"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Show Relationship Visualization option */}
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                  <div className="flex items-center justify-between bg-black/10 p-2 rounded border border-white/5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Hierarchy Graph Map</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowVisualizer(!showVisualizer)}
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase transition-all tracking-wider cursor-pointer ${
+                        showVisualizer 
+                          ? 'bg-blue-500/15 text-blue-400 border-blue-500/30' 
+                          : 'bg-[#1C2326] text-gray-400 border-white/5 hover:bg-[#2A3438]'
+                      }`}
+                    >
+                      {showVisualizer ? 'Active 🕸️' : 'Show 🕸️'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
 

@@ -73,6 +73,7 @@ export interface Task {
   updatedAt: string;
   sprintId?: string | null;
   taskType?: 'task' | 'bug';
+  parentId?: string | null;
   referenceNo?: string;
 }
 
@@ -97,6 +98,8 @@ export type NewTaskData = {
   dueDate?: string;
   sprintId?: string | null;
   taskType?: 'task' | 'bug';
+  parentId?: string | null;
+  projectId?: string;
   referenceNo?: string;
   tags?: string[];
 };

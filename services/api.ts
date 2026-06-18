@@ -468,6 +468,16 @@ const fetchChatMessages = async (projectId: string): Promise<ChatMessage[]> => {
     }
 };
 
+const fetchUserMetrics = async (userId: string): Promise<any> => {
+    try {
+        const response = await client.get(ENDPOINTS.USER.getMetrics(), { params: { userId } });
+        return response.data;
+    } catch (error) {
+        console.error("Failed to fetch user metrics:", error);
+        throw error;
+    }
+};
+
 const fetchInitialData = async (userId: string): Promise<AppState> => {
     let rpcData: any = null;
     try {
@@ -617,17 +627,21 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
             task.dueDate = task.dueDate || task.due_date;
 
             let ticketTag = task.tags.find((t: string) => t && t.startsWith('ticket:'));
-            let ticketNum = 0;
+            let ticketNum = ticketTag ? parseInt(ticketTag.split(':')[1], 10) : NaN;
             let needsPersist = false;
 
-            if (ticketTag) {
-                ticketNum = parseInt(ticketTag.split(':')[1], 10);
-            } else {
+            if (isNaN(ticketNum)) {
+                if (ticketTag) {
+                    task.tags = task.tags.filter((t: string) => t !== ticketTag);
+                }
                 if (maxTicketNum === 0) {
                     ticketNum = index + 1;
                 } else {
                     maxTicketNum += 1;
                     ticketNum = maxTicketNum;
+                }
+                if (ticketNum > maxTicketNum) {
+                    maxTicketNum = ticketNum;
                 }
                 task.tags.push(`ticket:${ticketNum}`);
                 needsPersist = true;
@@ -878,21 +892,20 @@ const addComment = async (taskId: string, text: string, authorId: string) => {
 
 const addTask = async (taskData: NewTaskData, creatorId: string) => {
     try {
-        const response = await client.post(ENDPOINTS.TASKS.addTask, {
-            taskData: {
-                title: taskData.title,
-                description: taskData.description,
-                priority: taskData.priority,
-                columnId: taskData.columnId,
-                assigneeId: taskData.assigneeId || null,
-                dueDate: taskData.dueDate || null,
-                sprintId: taskData.sprintId || null,
-                taskType: taskData.taskType || 'task',
-                referenceNo: taskData.referenceNo || null,
-                tags: taskData.tags || []
-            },
-            creatorId
-        });
+        const payload = {
+            projectId: taskData.projectId || null,
+            columnId: taskData.columnId,
+            title: taskData.title,
+            description: taskData.description || '',
+            priority: taskData.priority,
+            taskType: taskData.taskType || 'task',
+            parentId: taskData.parentId || null,
+            assigneeId: taskData.assigneeId || null,
+            dueDate: taskData.dueDate || null,
+            sprintId: taskData.sprintId || null,
+            creatorId: creatorId
+        };
+        const response = await client.post(ENDPOINTS.TASKS.addTask, payload);
         return response.data?.data;
     } catch (e: any) {
         console.error("Error adding task:", e);
@@ -1203,6 +1216,7 @@ export const api = {
     },
     data: {
         fetchInitialData,
+        fetchUserMetrics,
         fetchChatMessages,
         subscribeToProjectChat,
         moveTask,

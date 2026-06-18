@@ -191,8 +191,8 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   const [confirmation, setConfirmation] = useState<{ title: string; message: React.ReactNode; onConfirm: () => void; confirmText: string } | null>(null);
 
   // SaaS Navigation States
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isControlDeckOpen, setIsControlDeckOpen] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isControlDeckOpen, setIsControlDeckOpen] = useState(false);
   const [projectView, setProjectView] = useState<'board' | 'table' | 'graph' | 'sprints'>(() => {
     return (localStorage.getItem('user_project_default_view') || 'board') as 'board' | 'table' | 'graph' | 'sprints';
   });
@@ -512,6 +512,8 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                   aiFeaturesEnabled={featureFlags.ai}
                   onAddTask={(td) => addTask(taskProject.id, td, currentUser.id)}
                   columns={taskProject.board?.columnOrder?.map(cid => taskProject.board.columns[cid]) || []}
+                  allTasks={Object.values(taskProject.board.tasks || {})}
+                  projectId={taskProject.id}
                 />
               )
             )}
@@ -542,29 +544,29 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                     </button>
 
                     {isWorkspaceDropdownOpen && (
-                      <div className="absolute top-11 left-0 right-0 max-h-60 overflow-y-auto bg-[#0E1314] border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 custom-scrollbar">
+                      <div className="absolute top-11 left-0 w-[240px] max-h-60 overflow-y-auto bg-[#0E1314] border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 custom-scrollbar">
                         <button 
                           onClick={() => {
                             dispatch(setReduxActiveProjectId(null));
                             setIsWorkspaceDropdownOpen(false);
                             navigate('/dashboard');
                           }}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between hover:bg-white/5 ${!project ? 'bg-[#101918] text-emerald-400' : 'text-gray-400 hover:text-white'}`}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between hover:bg-white/5 ${!project ? 'bg-[#101918] text-emerald-400' : 'text-gray-400 hover:text-white'} min-w-0`}
                         >
-                          <span>Global Nexus (All Projects)</span>
-                          {!project && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                          <span className="truncate pr-2">Global Nexus (All Projects)</span>
+                          {!project && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full flex-shrink-0" />}
                         </button>
                         <div className="h-px bg-white/5 my-1" />
                         {Object.values(state.projects || {}).map((p) => (
-                          <div key={p.id} className="relative group/workspacerow flex items-center w-full">
+                          <div key={p.id} className="relative group/workspacerow flex items-center w-full min-w-0">
                             <button 
                               onClick={() => {
                                 handleSelectProject(p.id);
                                 setIsWorkspaceDropdownOpen(false);
                               }}
-                              className={`flex-grow text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between hover:bg-white/5 ${project?.id === p.id ? 'bg-[#101918] text-emerald-400' : 'text-gray-400 hover:text-white'}`}
+                              className={`flex-grow min-w-0 text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between hover:bg-white/5 ${project?.id === p.id ? 'bg-[#101918] text-emerald-400' : 'text-gray-400 hover:text-white'}`}
                             >
-                              <span className="truncate pr-6">{p.name}</span>
+                              <span className="truncate pr-8">{p.name}</span>
                               {project?.id === p.id && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full flex-shrink-0" />}
                             </button>
                             <button
@@ -573,7 +575,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                                 handleOpenProjectPopup(p.id);
                                 setIsWorkspaceDropdownOpen(false);
                               }}
-                              className="absolute right-2.5 opacity-0 group-hover/workspacerow:opacity-100 p-1 rounded hover:bg-white/10 text-gray-500 hover:text-emerald-400 transition-all z-10"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/workspacerow:opacity-100 p-1.5 rounded hover:bg-white/10 text-gray-550 hover:text-emerald-400 transition-all z-10"
                               title="Open in Floating Window"
                             >
                               <ExternalLinkIcon className="w-3.5 h-3.5" />
@@ -1171,15 +1173,15 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             .hover\\:bg-gray-700:hover { background-color: #E2E8F0 !important; }
 
             /* Translucent Active/Badge Background Adjustments for light theme */
-            [class*="bg-white/5"], [class*="bg-white\\/5"] { background-color: rgba(0, 0, 0, 0.04) !important; }
-            [class*="bg-white/10"], [class*="bg-white\\/10"] { background-color: rgba(0, 0, 0, 0.08) !important; }
-            [class*="bg-white/15"], [class*="bg-white\\/15"] { background-color: rgba(0, 0, 0, 0.12) !important; }
-            [class*="bg-white/20"], [class*="bg-white\\/20"] { background-color: rgba(0, 0, 0, 0.16) !important; }
+            .bg-white\/5, [class~="bg-white/5"] { background-color: rgba(0, 0, 0, 0.04) !important; }
+            .bg-white\/10, [class~="bg-white/10"] { background-color: rgba(0, 0, 0, 0.08) !important; }
+            .bg-white\/15, [class~="bg-white/15"] { background-color: rgba(0, 0, 0, 0.12) !important; }
+            .bg-white\/20, [class~="bg-white/20"] { background-color: rgba(0, 0, 0, 0.16) !important; }
 
             /* Dynamic Hover Background Adjustments */
-            [class*="hover:bg-white/5"]:hover, [class*="hover:bg-white\\/5"]:hover,
-            [class*="group-hover:bg-white/5"]:hover, [class*="group-hover:bg-white\\/5"]:hover { background-color: rgba(0, 0, 0, 0.05) !important; }
-            [class*="hover:bg-white/10"]:hover, [class*="hover:bg-white\\/10"]:hover { background-color: rgba(0, 0, 0, 0.08) !important; }
+            .hover\:bg-white\/5:hover, [class~="hover:bg-white/5"]:hover,
+            .group-hover\:bg-white\/5:hover, [class~="group-hover:bg-white/5"]:hover { background-color: rgba(0, 0, 0, 0.05) !important; }
+            .hover\:bg-white\/10:hover, [class~="hover:bg-white/10"]:hover { background-color: rgba(0, 0, 0, 0.08) !important; }
 
             /* Text & Font Contrast Overrides */
             .text-white, [class*="text-slate-100"], [class*="text-slate-50"] { color: #111827 !important; }
@@ -1203,6 +1205,15 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
 
             /* Inputs & Direct Visual Modifiers */
             button, select, select option, input, textarea { color: #1F2937 !important; }
+            select, select option {
+              background-color: #FFFFFF !important;
+              background: #FFFFFF !important;
+              color: #1F2937 !important;
+            }
+            input, textarea {
+              background-color: #FFFFFF !important;
+              color: #1F2937 !important;
+            }
             input::placeholder, textarea::placeholder { color: #9CA3AF !important; }
             .text-emerald-500 { color: #047857 !important; }
             
@@ -1299,6 +1310,15 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             .bg-\\[\\#1C2326\\], .bg-\\[\\#1c2326\\] { background-color: #2D3639 !important; }
             .border-white\\/5 { border-color: #2D3538 !important; }
             .border-white\\/10 { border-color: #384246 !important; }
+            select, select option {
+              background-color: #181C1E !important;
+              background: #181C1E !important;
+              color: #F3F4F6 !important;
+            }
+            input, textarea {
+              background-color: #181C1E !important;
+              color: #F3F4F6 !important;
+            }
           `}</style>
         )}
         {isCreateProjectOpen && <CreateProjectModal onClose={() => setIsCreateProjectOpen(false)} onAddProject={(n, d) => addProject(n, d, currentUser.id)} />}

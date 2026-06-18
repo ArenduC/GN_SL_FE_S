@@ -720,12 +720,19 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
 
   const addTask = useCallback(async (projectId: string, taskData: NewTaskData, creatorId: string) => {
     optimisticTouch(projectId);
-    const newTask = await api.data.addTask(taskData, creatorId);
-    if (newTask && currentUser) {
-      await api.data.moveTask(newTask.id, taskData.columnId, 1, currentUser.id);
+    let resolvedColId = taskData.columnId;
+    if (!resolvedColId) {
+      const proj = state.projects[projectId];
+      if (proj && proj.board && proj.board.columnOrder && proj.board.columnOrder.length > 0) {
+        resolvedColId = proj.board.columnOrder[0];
+      }
+    }
+    const newTask = await api.data.addTask({ ...taskData, columnId: resolvedColId, projectId }, creatorId);
+    if (newTask && currentUser && resolvedColId) {
+      await api.data.moveTask(newTask.id, resolvedColId, 1, currentUser.id);
     }
     await fetchData();
-  }, [fetchData, currentUser]);
+  }, [fetchData, currentUser, state.projects]);
 
   const addTasksBatch = useCallback(async (projectId: string, tasksToCreate: AiGeneratedTaskFromFile[], sprintId: string | null) => {
     if (!currentUser) return;
@@ -779,6 +786,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
         priority: generatedData.priority,
         columnId: project.board.columnOrder[0], 
         dueDate: generatedData.dueDate,
+        projectId,
     };
 
     const newTask = await api.data.addTask(taskData, currentUser.id);
@@ -861,6 +869,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
                     description: task.description,
                     priority: task.priority,
                     columnId: newColumn.id,
+                    projectId: newProject.id,
                 };
                 const newTask = await api.data.addTask(taskData, currentUser.id);
                 if (newTask && task.subtasks && task.subtasks.length > 0) {
@@ -1046,6 +1055,8 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
       dueDate: originalTask.dueDate || undefined,
       sprintId: originalTask.sprintId || null,
       taskType: originalTask.taskType || 'task',
+      parentId: originalTask.parentId || null,
+      projectId: projectId,
       referenceNo: originalTask.ticketId,
       tags: filteredTags
     };

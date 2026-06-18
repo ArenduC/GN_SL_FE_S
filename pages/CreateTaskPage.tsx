@@ -1,5 +1,6 @@
 import React, { useState, useEffect, FormEvent, useMemo } from 'react';
-import { TaskPriority, Column, NewTaskData, User, Sprint, Project } from '../types';
+import { useSearchParams } from 'react-router-dom';
+import { TaskPriority, Column, NewTaskData, User, Sprint, Project, Task } from '../types';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { 
   ArrowLeft, 
@@ -13,7 +14,8 @@ import {
   AlertCircle, 
   Loader2, 
   Plus, 
-  X 
+  X,
+  Link
 } from 'lucide-react';
 
 interface CreateTaskPageProps {
@@ -39,6 +41,15 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
     return project?.sprints || [];
   }, [project]);
 
+  const allTasks = useMemo(() => {
+    return Object.values(project?.board?.tasks || {}) as Task[];
+  }, [project]);
+
+  const [searchParams] = useSearchParams();
+  const queryParentId = useMemo(() => {
+    return searchParams.get('parentId') || searchParams.get('taskId') || searchParams.get('parentTaskId') || searchParams.get('referenceTaskId') || '';
+  }, [searchParams]);
+
   const [title, setTitle] = useState(() => localStorage.getItem('draft_page_task_title') || '');
   const [description, setDescription] = useState(() => localStorage.getItem('draft_page_task_description') || '');
   const [priority, setPriority] = useState<TaskPriority>(() => (localStorage.getItem('draft_page_task_priority') as TaskPriority) || TaskPriority.MEDIUM);
@@ -46,6 +57,7 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
   const [assigneeId, setAssigneeId] = useState<string>(() => localStorage.getItem('draft_page_task_assigneeId') || '');
   const [dueDate, setDueDate] = useState(() => localStorage.getItem('draft_page_task_dueDate') || '');
   const [taskType, setTaskType] = useState<'task' | 'bug'>(() => (localStorage.getItem('draft_page_task_taskType') as 'task' | 'bug') || 'task');
+  const [parentId, setParentId] = useState<string>(() => queryParentId || localStorage.getItem('draft_page_task_parentId') || '');
 
   const defaultSprintId = useMemo(() => {
     const defaultSprint = (sprints || []).find(s => s.isDefault);
@@ -61,6 +73,29 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
   const [newSprintName, setNewSprintName] = useState('');
   const [newSprintIsDefault, setNewSprintIsDefault] = useState(false);
   const [isCreatingSprint, setIsCreatingSprint] = useState(false);
+
+  useEffect(() => {
+    const parentVal = searchParams.get('parentId') || searchParams.get('taskId') || searchParams.get('parentTaskId') || searchParams.get('referenceTaskId') || '';
+    if (parentVal) setParentId(parentVal);
+    
+    const titleVal = searchParams.get('title');
+    if (titleVal) setTitle(titleVal);
+    
+    const descVal = searchParams.get('description');
+    if (descVal) setDescription(descVal);
+    
+    const typeVal = searchParams.get('taskType');
+    if (typeVal === 'task' || typeVal === 'bug') setTaskType(typeVal);
+    
+    const priorityVal = searchParams.get('priority');
+    if (priorityVal) setPriority(priorityVal as TaskPriority);
+    
+    const assigneeVal = searchParams.get('assigneeId');
+    if (assigneeVal !== null) setAssigneeId(assigneeVal);
+    
+    const sprintVal = searchParams.get('sprintId');
+    if (sprintVal !== null) setSprintId(sprintVal);
+  }, [searchParams]);
 
   // Sync draft helper state
   useEffect(() => {
@@ -97,6 +132,10 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
     localStorage.setItem('draft_page_task_sprintId', sprintId);
   }, [sprintId]);
 
+  useEffect(() => {
+    localStorage.setItem('draft_page_task_parentId', parentId);
+  }, [parentId]);
+
   const clearDraft = () => {
     localStorage.removeItem('draft_page_task_title');
     localStorage.removeItem('draft_page_task_description');
@@ -106,6 +145,7 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
     localStorage.removeItem('draft_page_task_dueDate');
     localStorage.removeItem('draft_page_task_taskType');
     localStorage.removeItem('draft_page_task_sprintId');
+    localStorage.removeItem('draft_page_task_parentId');
   };
 
   const handleCreateSprint = async () => {
@@ -148,6 +188,7 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
         dueDate: dueDate || undefined,
         sprintId: sprintId || null,
         taskType,
+        parentId: parentId || null,
       });
       clearDraft();
     } catch (err) {
@@ -259,6 +300,27 @@ export const CreateTaskPage: React.FC<CreateTaskPageProps> = ({
           <div className="bg-[#0F1517] border border-white/5 rounded-lg p-4 space-y-4 shadow-sm">
             <h3 className="text-[9px] font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-1 select-none">Contextual parameters</h3>
             
+            {/* Parent Task select / Reference */}
+            <div>
+              <label htmlFor="parentId" className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1 select-none">
+                <Link className="w-3 h-3 text-[#10b981]" />
+                Linked Parent (Reference)
+              </label>
+              <select
+                id="parentId"
+                value={parentId}
+                onChange={(e) => setParentId(e.target.value)}
+                className="w-full px-2 py-1.5 border border-white/5 rounded bg-[#1C2326] text-white text-xs focus:outline-none cursor-pointer truncate"
+              >
+                <option value="">No Reference (Standalone)</option>
+                {allTasks.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.ticketId ? `[${t.ticketId}] ` : ''}{t.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Column select */}
             <div>
               <label htmlFor="column" className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1 select-none">

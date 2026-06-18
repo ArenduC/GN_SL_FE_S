@@ -10,6 +10,7 @@ import { ProjectConfirmationModal } from '../components/ProjectConfirmationModal
 import { generateProjectFromCsv } from '../services/geminiService';
 import { Pagination } from '../components/Pagination';
 import { UserAvatar } from '../components/UserAvatar';
+import { api } from '../services/api';
 
 interface DashboardPageProps {
   projects: Project[];
@@ -365,6 +366,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [dayActivityTasks, setDayActivityTasks] = useState<Task[]>([]);
 
+    const [userMetrics, setUserMetrics] = useState<any>(null);
+    const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(false);
+
+    useEffect(() => {
+        const loadMetrics = async () => {
+            if (currentUser?.id) {
+                setIsLoadingMetrics(true);
+                try {
+                    const metrics = await api.data.fetchUserMetrics(currentUser.id);
+                    if (metrics) {
+                        setUserMetrics(metrics);
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch user metrics on dashboard:", err);
+                } finally {
+                    setIsLoadingMetrics(false);
+                }
+            }
+        };
+        loadMetrics();
+    }, [currentUser, projects]);
+
     // FIX: Added explicit type casting (as Task[]) to ensure Object.values returns typed results for flatMap, resolving potential type inference issues.
     const allTasks = useMemo(() => projects.flatMap(p => p.board?.tasks ? (Object.values(p.board.tasks) as Task[]) : []), [projects]);
     
@@ -448,11 +471,29 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={<LayoutDashboardIcon />} label="Nodes" value={projects.length} trend="+2%" />
-                <StatCard icon={<CheckSquareIcon />} label="Mesh Tasks" value={activeTasks.length} />
-                <StatCard icon={<TrendingUpIcon />} label="Team Flux" value={`${onlineUsers.size}/${Object.keys(users || {}).length}`} trend="Live" />
-                <StatCard icon={<ClockIcon />} label="Latency" value="< 10ms" />
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard 
+                    icon={<LayoutDashboardIcon />} 
+                    label="Nodes" 
+                    value={userMetrics?.metrics?.nodes?.value !== undefined ? userMetrics.metrics.nodes.value : projects.length} 
+                    trend={userMetrics?.metrics?.nodes?.changePercentage !== undefined ? `${userMetrics.metrics.nodes.changePercentage >= 0 ? '+' : ''}${userMetrics.metrics.nodes.changePercentage}%` : "+2%"} 
+                />
+                <StatCard 
+                    icon={<CheckSquareIcon />} 
+                    label="Mesh Tasks" 
+                    value={userMetrics?.metrics?.meshTasks?.value !== undefined ? userMetrics.metrics.meshTasks.value : activeTasks.length} 
+                />
+                <StatCard 
+                    icon={<TrendingUpIcon />} 
+                    label="Team Flux" 
+                    value={userMetrics?.metrics?.teamFlux ? `${userMetrics.metrics.teamFlux.active}/${userMetrics.metrics.teamFlux.total}` : `${onlineUsers.size}/${Object.keys(users || {}).length}`} 
+                    trend={userMetrics?.metrics?.teamFlux?.statusSignal ?? "Live"} 
+                />
+                <StatCard 
+                    icon={<ClockIcon />} 
+                    label="Latency" 
+                    value={userMetrics?.metrics?.latency?.formatted ?? "< 10ms"} 
+                />
             </div>
 
             <div className="grid grid-cols-12 gap-6">
