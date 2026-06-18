@@ -1313,6 +1313,24 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             .rich-text-editor-container .ql-snow .ql-picker-item {
               color: #4B5563 !important;
             }
+
+            /* Light theme Quill / Rich text table rules */
+            .ql-editor table {
+              border: 2px solid rgba(0, 0, 0, 0.15) !important;
+              background-color: rgba(0, 0, 0, 0.01) !important;
+            }
+            .ql-editor th {
+              border: 2px solid rgba(0, 0, 0, 0.15) !important;
+              background-color: rgba(16, 185, 129, 0.08) !important;
+              color: #065f46 !important;
+            }
+            .ql-editor td {
+              border: 1px solid rgba(0, 0, 0, 0.12) !important;
+              color: #1f2937 !important;
+            }
+            .ql-editor tr:nth-child(even) {
+              background-color: rgba(0, 0, 0, 0.03) !important;
+            }
           `}</style>
         )}
         {activeTheme === 'gray' && (
