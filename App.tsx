@@ -74,10 +74,10 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   const currentView = (view === 'project' || view === 'create-task' || view === 'task-details') ? 'dashboard' : view;
   const [onlineUsers, setOnlineUsersLocal] = useState<Set<string>>(new Set());
 
-  const setOnlineUsers = (users: Set<string>) => {
+  const setOnlineUsers = useCallback((users: Set<string>) => {
     setOnlineUsersLocal(users);
     dispatch(setReduxOnlineUsers(Array.from(users)));
-  };
+  }, [dispatch]);
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -161,7 +161,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
     fetchRemoteSettings();
   }, [currentUser]);
 
-  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject } = useAppState(session, currentUser, activeProjectId);
+  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject } = useAppState(session, currentUser, activeProjectId, setOnlineUsers);
 
   useEffect(() => {
     const defaultProjId = localStorage.getItem('user_project_default_project');
@@ -423,6 +423,11 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
       .map(id => state.users[id])
       .filter((u): u is User => !!u);
   }, [project, state.users]);
+
+  const activeOnlineUsers = useMemo(() => {
+    const candidates = Object.values(state.users || {});
+    return candidates.filter(u => u && u.id !== currentUser?.id && onlineUsers.has(u.id));
+  }, [state.users, onlineUsers, currentUser?.id]);
 
   // Recovery flow takes absolute priority
   if (isRecoveringPassword) {
@@ -1096,6 +1101,48 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                   <button onClick={() => setIsInfoHubOpen(true)} className="p-2 text-gray-500 hover:text-white transition-colors">
                     <HelpCircleIcon className="w-4 h-4" />
                   </button>
+
+                  {/* Neural Presence / Online Project Members Avatar Stack */}
+                  {activeOnlineUsers.length > 0 && (
+                    <div className="flex items-center -space-x-2 mr-1 relative overflow-visible" id="project-presence-group">
+                      {activeOnlineUsers.slice(0, 4).map((onlineUser) => (
+                        <div 
+                          key={onlineUser.id} 
+                          className="relative group/avatar cursor-help transition-all duration-200 hover:-translate-y-0.5 hover:z-30"
+                        >
+                          <UserAvatar 
+                            user={onlineUser} 
+                            className="w-7 h-7 text-[9px] font-bold ring-2 ring-[#0E1314] hover:ring-emerald-400 transition-all rounded-full" 
+                            isOnline={true} 
+                          />
+                          {/* Rich interactive tooltip */}
+                          <div className="absolute top-9 left-1/2 -translate-x-1/2 hidden group-hover/avatar:flex flex-col bg-[#0E1314] border border-white/10 rounded-lg p-2 shadow-2xl z-50 whitespace-nowrap text-left text-[10px] pointer-events-none animate-in fade-in slide-in-from-top-1 duration-100">
+                            <p className="font-bold text-white leading-none mb-0.5">{onlineUser.name}</p>
+                            <p className="text-gray-400 text-[9px] lowercase leading-none mb-1">{onlineUser.email || `${onlineUser.name.toLowerCase().replace(/\s+/g, '')}@workspace.net`}</p>
+                            <div className="flex">
+                              <span className="px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase tracking-[0.1em] border border-emerald-500/20">{onlineUser.role || 'Member'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {activeOnlineUsers.length > 4 && (
+                        <div 
+                          className="w-7 h-7 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-[9px] font-black flex items-center justify-center text-emerald-400 ring-2 ring-[#0E1314] cursor-help relative group/avgore transition-all duration-200 z-10"
+                        >
+                          +{activeOnlineUsers.length - 4}
+                          {/* Tooltip listing extra online members */}
+                          <div className="absolute top-9 right-0 hidden group-hover/avgore:flex flex-col bg-[#0E1314] border border-white/10 rounded-lg p-2 shadow-2xl z-50 whitespace-nowrap text-left text-[10px] pointer-events-none animate-in fade-in slide-in-from-top-1 duration-100 min-w-[120px]">
+                            <p className="font-black text-gray-400 text-[8px] uppercase tracking-wider mb-1 border-b border-white/5 pb-1 select-none">Also Online:</p>
+                            <div className="flex flex-col gap-0.5">
+                              {activeOnlineUsers.slice(4).map(ou => (
+                                <p key={ou.id} className="text-white font-semibold truncate">{ou.name}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Profile Menu Settings trigger */}
                   <button 

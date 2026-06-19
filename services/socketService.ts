@@ -4,18 +4,26 @@ let socket: Socket | null = null;
 let currentProjectId: string | null = null;
 let currentToken: string | null = null;
 let messageCallback: ((payload: any) => void) | null = null;
+let presenceCallback: ((data: any) => void) | null = null;
 
 export const getSocketUrl = (): string => {
-    return ' https://amendments-corn-attachment-primary.trycloudflare.com';
+    return 'https://robinson-conditioning-specialty-customs.trycloudflare.com';
 };
 
 export const getSocket = (): Socket | null => {
     return socket;
 };
 
-export const initSocket = (token: string, onMessageReceived: (message: any) => void) => {
-    // Keep the local callback reference updated with the latest React cycle callback
+export const initSocket = (
+    token: string, 
+    onMessageReceived: (message: any) => void,
+    onPresenceSynced?: (data: any) => void
+) => {
+    // Keep the local callback references updated with the latest React cycle callback
     messageCallback = onMessageReceived;
+    if (onPresenceSynced) {
+        presenceCallback = onPresenceSynced;
+    }
 
     // If socket is already initialized with the same token, don't re-initialize
     if (socket && currentToken === token) {
@@ -75,6 +83,14 @@ export const initSocket = (token: string, onMessageReceived: (message: any) => v
             console.log('Received chat event via WebSocket:', payload);
             if (payload && messageCallback) {
                 messageCallback(payload);
+            }
+        });
+
+        // Listen for presence:sync event - update active presence and users
+        socket.on('presence:sync', (data: any) => {
+            console.log('Received presence:sync event via WebSocket:', data);
+            if (data && presenceCallback) {
+                presenceCallback(data);
             }
         });
 

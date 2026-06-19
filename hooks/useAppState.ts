@@ -13,7 +13,12 @@ const initialState: AppState = {
   projectOrder: [],
 };
 
-export const useAppState = (session: Session | null, currentUser: User | null, activeProjectId?: string | null) => {
+export const useAppState = (
+  session: Session | null, 
+  currentUser: User | null, 
+  activeProjectId?: string | null,
+  onPresenceUpdate?: (onlineIds: Set<string>) => void
+) => {
   const [state, setState] = useState<AppState>(initialState);
   const [loading, setLoading] = useState(true);
   const userId = session?.user?.id;
@@ -256,8 +261,55 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
       });
     };
 
-    // Initialize Socket Connection with Supabase access token
-    initSocket(session.access_token, handleSocketMessage);
+    // Initialize Socket Connection with Supabase access token and presence sync
+    initSocket(session.access_token, handleSocketMessage, (data: any) => {
+      // Check the format of incoming array of users
+      const onlineList = data && Array.isArray(data.onlineUsers) 
+        ? data.onlineUsers 
+        : (Array.isArray(data) ? data : []);
+
+      const onlineIds = new Set<string>();
+
+      setState(prevState => {
+        const updatedUsers = { ...prevState.users };
+        let hasChanges = false;
+
+        onlineList.forEach((u: any) => {
+          if (u && u.id) {
+            onlineIds.add(u.id);
+            const existingUser = updatedUsers[u.id];
+
+            if (!existingUser || 
+                existingUser.name !== u.name || 
+                existingUser.avatarUrl !== u.avatarUrl || 
+                existingUser.role !== u.role) {
+              
+              updatedUsers[u.id] = {
+                id: u.id,
+                name: u.name || 'Collaborator',
+                avatarUrl: u.avatarUrl || undefined,
+                role: (u.role || 'Member') as any
+              };
+              hasChanges = true;
+            }
+          }
+        });
+
+        if (hasChanges) {
+          const newState = {
+            ...prevState,
+            users: updatedUsers
+          };
+          syncCache(newState);
+          return newState;
+        }
+        return prevState;
+      });
+
+      if (onPresenceUpdate) {
+        onPresenceUpdate(onlineIds);
+      }
+    });
 
     // If an active project ID exists, join its room immediately
     if (activeProjectId) {
@@ -268,7 +320,7 @@ export const useAppState = (session: Session | null, currentUser: User | null, a
       // Keep background connection across active project room switches,
       // but we handles clean disconnects when session/user logs out.
     };
-  }, [session, userId, activeProjectId]);
+  }, [session, userId, activeProjectId, onPresenceUpdate]);
 
   /**
    * Optimistically "touches" a project in the local state.

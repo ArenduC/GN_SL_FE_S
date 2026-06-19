@@ -38,9 +38,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({ user, className, title, 
 
   const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
   const color = getColor(user.name);
-  const defaultAvatar = `https://api.dicebear.com/7.x/lorelei/svg?seed=${encodeURIComponent(user.name || 'user')}`;
-  const avatar = user.avatarUrl || (user as any).avatar_url || defaultAvatar;
-  const showImage = avatar && !imgError;
+  const avatar = user.avatarUrl || (user as any).avatar_url;
+  const showImage = !!avatar && !imgError;
   
   return (
     <div
