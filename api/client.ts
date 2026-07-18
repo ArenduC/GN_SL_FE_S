@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { setupInterceptors } from './interceptors';
 
-export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://episode-drearily-bath.ngrok-free.dev';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://gn-sl-api.vercel.app';
 
 const client = axios.create({
     baseURL: BASE_URL,

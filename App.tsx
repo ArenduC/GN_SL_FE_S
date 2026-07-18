@@ -2,7 +2,7 @@
 import React, { useState, useEffect, createContext, useContext, useCallback, useMemo } from 'react';
 import { AppState, User, Project, Task, NewTaskData, Subtask, ChatMessage, TaskPriority, AiGeneratedTaskFromFile, Sprint, FilterSegment, FeedbackType } from './types';
 import { useAppState } from './hooks/useAppState';
-import { api } from './services/api';
+import { api, generateProjectCode } from './services/api';
 import { LandingPage } from './components/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { KanbanBoard } from './components/KanbanBoard';
@@ -161,7 +161,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
     fetchRemoteSettings();
   }, [currentUser]);
 
-  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject } = useAppState(session, currentUser, activeProjectId, setOnlineUsers);
+  const { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addAiTask, addTask, duplicateTask, addTasksBatch, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject, updateTasksFromBoard } = useAppState(session, currentUser, activeProjectId, setOnlineUsers);
 
   useEffect(() => {
     const defaultProjId = localStorage.getItem('user_project_default_project');
@@ -208,18 +208,72 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   const [sidebarSearch, setSidebarSearch] = useState('');
 
   const taskProject = useMemo(() => {
+    const targetProjectId = projectId || activeProjectId;
+    if (targetProjectId && state.projects?.[targetProjectId]) {
+      return state.projects[targetProjectId];
+    }
     if (taskId) {
-      return (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[taskId]);
+      return (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[taskId]) || null;
     }
     if (!selectedTaskId) return null;
-    return (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[selectedTaskId]);
-  }, [selectedTaskId, taskId, state.projects]);
+    return (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[selectedTaskId]) || null;
+  }, [selectedTaskId, taskId, projectId, activeProjectId, state.projects]);
+
+  const normalizeTaskTicketId = useCallback((t: any, proj: any) => {
+    if (!t) return null;
+    const originalTicketId = t.ticketId || t.ticket_id;
+    const projectCode = proj ? generateProjectCode(proj.name) : 'TSK';
+    
+    let ticketId = originalTicketId;
+    if (!ticketId) {
+      const ticketTag = (t.tags || []).find((tagStr: string) => tagStr && tagStr.startsWith('ticket:'));
+      if (ticketTag) {
+        ticketId = ticketTag.split(':')[1];
+      }
+    }
+    
+    if (ticketId && projectCode === 'SLO') {
+      const numMatch = ticketId.match(/\d+/);
+      if (numMatch) {
+        const num = parseInt(numMatch[0], 10);
+        ticketId = `SLO${num.toString().padStart(5, '0')}`;
+      }
+    }
+    
+    if (ticketId) {
+      return { ...t, ticketId };
+    }
+    
+    if (proj) {
+      if (projectCode === 'SLO') {
+        return { ...t, ticketId: 'SLO00001' };
+      }
+      return { ...t, ticketId: `${projectCode}-${t.id.substring(0, 4)}` };
+    }
+    return t;
+  }, []);
 
   const selectedTask = useMemo(() => {
-    if (taskId && taskProject) return taskProject.board.tasks[taskId];
+    if (taskId) {
+      if (taskProject?.board?.tasks?.[taskId]) {
+        return normalizeTaskTicketId(taskProject.board.tasks[taskId], taskProject);
+      }
+      const foundProject = (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[taskId]);
+      if (foundProject) {
+        return normalizeTaskTicketId(foundProject.board.tasks[taskId], foundProject);
+      }
+      return null;
+    }
     if (!selectedTaskId || !taskProject) return null;
-    return taskProject.board.tasks[selectedTaskId];
-  }, [selectedTaskId, taskId, taskProject]);
+    if (taskProject.board?.tasks?.[selectedTaskId]) {
+      return normalizeTaskTicketId(taskProject.board.tasks[selectedTaskId], taskProject);
+    }
+    const foundProject = (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[selectedTaskId]);
+    if (foundProject) {
+      return normalizeTaskTicketId(foundProject.board.tasks[selectedTaskId], foundProject);
+    }
+    return null;
+  }, [selectedTaskId, taskId, taskProject, state.projects, normalizeTaskTicketId]);
 
   const taskProjectMembers = useMemo(() => {
     if (!taskProject) return [];
@@ -244,13 +298,13 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   }, [taskProject]);
 
   const handleTaskClick = useCallback((task: Task) => {
-    const proj = (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[task.id]);
-    if (proj) {
-      navigate(`/project/${proj.id}/task/${task.id}`);
+    const projId = activeProjectId || (Object.values(state.projects || {}) as Project[]).find(p => p.board?.tasks?.[task.id])?.id;
+    if (projId) {
+      navigate(`/project/${projId}/task/${task.id}`);
     } else {
       setSelectedTaskId(task.id);
     }
-  }, [state.projects, navigate]);
+  }, [state.projects, navigate, activeProjectId]);
 
   useEffect(() => {
     // Immediate check for recovery flow in URL fragment
@@ -426,8 +480,13 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
 
   const activeOnlineUsers = useMemo(() => {
     const candidates = Object.values(state.users || {});
-    return candidates.filter(u => u && u.id !== currentUser?.id && onlineUsers.has(u.id));
-  }, [state.users, onlineUsers, currentUser?.id]);
+    const onlineCandidates = candidates.filter(u => u && u.id !== currentUser?.id && onlineUsers.has(u.id));
+    if (activeProjectId && project) {
+      const memberIds = new Set((project.members || []).map(m => typeof m === 'string' ? m : m.id));
+      return onlineCandidates.filter(u => memberIds.has(u.id));
+    }
+    return onlineCandidates;
+  }, [state.users, onlineUsers, currentUser?.id, activeProjectId, project]);
 
   // Recovery flow takes absolute priority
   if (isRecoveringPassword) {
@@ -1175,6 +1234,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                     deleteSprint={(sid) => deleteSprint(project.id, sid)} bulkUpdateTaskSprint={bulkUpdateTaskSprint} completeSprint={completeSprint}
                     addFilterSegment={(n, f) => addFilterSegment(project.id, n, f, currentUser.id)} updateFilterSegment={updateFilterSegment} deleteFilterSegment={deleteFilterSegment}
                     fetchChatMessagesForProject={fetchChatMessagesForProject}
+                    updateTasksFromBoard={(tasksList) => updateTasksFromBoard(project.id, tasksList)}
                   />
                 ) : currentView === 'dashboard' ? (
                   <DashboardPage projects={Object.values(state.projects || {})} users={state.users || {}} currentUser={currentUser} onlineUsers={onlineUsers} onSelectProject={handleSelectProject} onCreateProject={() => setIsCreateProjectOpen(true)} onManageMembers={(id) => {setMemberProjectId(id); setIsManageMembersOpen(true);}} onShareProject={(p) => {setShareProject(p); setIsShareModalOpen(true);}} addProjectFromPlan={addProjectFromPlan} aiFeaturesEnabled={featureFlags.ai} onOpenProjectPopup={handleOpenProjectPopup} />
@@ -1220,13 +1280,34 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             [class*="bg-[#0C1012]"], [class*="bg-[#0c1012]"] { background-color: #FFFFFF !important; }
             [class*="bg-[#101918]"], [class*="bg-[#101918]"] { background-color: #D1FAE5 !important; }
             [class*="bg-[#141B1C]"], [class*="bg-[#141b1c]"] { background-color: #F1F5F9 !important; }
+            [class*="bg-[#121819]"], [class*="bg-[#121819]"] { background-color: #F1F5F9 !important; }
             .bg-black\\/10 { background-color: #F1F5F9 !important; }
             .bg-[#0B0E0F] { background-color: #FFFFFF !important; }
+
+            /* Graph Schema Visualizer light theme mapping */
+            [class*="bg-[#0B0F11]"], [class*="bg-[#0b0f11]"] { background-color: #E2E8F0 !important; }
+            [class*="bg-[#101618]"], [class*="bg-[#101618]"] { background-color: #FFFFFF !important; border-color: rgba(0, 0, 0, 0.08) !important; }
+            [class*="bg-[#0E1315]"], [class*="bg-[#0e1315]"] { background-color: #FFFFFF !important; border-color: rgba(0, 0, 0, 0.08) !important; }
+            [class*="bg-[#0F1C1C]"], [class*="bg-[#0f1c1c]"] { background-color: #ECFDF5 !important; border-color: #10B981 !important; }
+            [class*="bg-[#141A1C]"], [class*="bg-[#141a1c]"] { background-color: #F1F5F9 !important; border-color: rgba(0, 0, 0, 0.06) !important; }
+            [class*="bg-[#111719]"], [class*="bg-[#111719]"] { background-color: #F8FAFC !important; border-color: rgba(0, 0, 0, 0.06) !important; }
+            [class*="bg-[#131C1B]/"], [class*="bg-[#131c1b]/"], [class*="bg-[#131C1B]\\/"], [class*="bg-[#131c1b]\\/"] {
+              background-color: rgba(255, 255, 255, 0.85) !important;
+              backdrop-filter: blur(12px) !important;
+            }
 
             /* Gray background elements adjusted for light theme */
             .bg-gray-800 { background-color: #E2E8F0 !important; color: #1F2937 !important; border-color: #CBD5E1 !important; }
             .bg-gray-700 { background-color: #F1F5F9 !important; color: #374151 !important; }
             .hover\\:bg-gray-700:hover { background-color: #E2E8F0 !important; }
+            .hover\\:bg-gray-800:hover, [class*="hover:bg-gray-800"]:hover, .hover\\:bg-gray-800 { background-color: rgba(0, 0, 0, 0.05) !important; }
+
+            /* Translucent/Slash bg-gray-800 overrides to avoid muddy overlays in light mode */
+            [class*="bg-gray-800/"], [class*="bg-gray-800\\/"] { background-color: #F8FAFC !important; border: 1px solid #E2E8F0 !important; }
+            [class*="bg-gray-800/50"], [class*="bg-gray-800\\/50"], .bg-gray-800\\/50 { background-color: #F1F5F9 !important; border: 1px solid #CBD5E1 !important; }
+            [class*="bg-gray-800/40"], [class*="bg-gray-800\\/40"], .bg-gray-800\\/40 { background-color: #F8FAFC !important; border: 1px solid #CBD5E1 !important; }
+            [class*="bg-gray-800/30"], [class*="bg-gray-800\\/30"], .bg-gray-800\\/30 { background-color: #F8FAFC !important; border: 1px solid #CBD5E1 !important; }
+            [class*="bg-gray-800/20"], [class*="bg-gray-800\\/20"], .bg-gray-800\\/20 { background-color: rgba(0, 0, 0, 0.03) !important; }
 
             /* Translucent Active/Badge Background Adjustments for light theme */
             .bg-white\/5, [class~="bg-white/5"] { background-color: rgba(0, 0, 0, 0.04) !important; }
@@ -1238,6 +1319,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             .hover\:bg-white\/5:hover, [class~="hover:bg-white/5"]:hover,
             .group-hover\:bg-white\/5:hover, [class~="group-hover:bg-white/5"]:hover { background-color: rgba(0, 0, 0, 0.05) !important; }
             .hover\:bg-white\/10:hover, [class~="hover:bg-white/10"]:hover { background-color: rgba(0, 0, 0, 0.08) !important; }
+            .hover\\:text-white:hover, [class*="hover:text-white"]:hover { color: #111827 !important; }
 
             /* Text & Font Contrast Overrides */
             .text-white, [class*="text-slate-100"], [class*="text-slate-50"] { color: #111827 !important; }
@@ -1251,6 +1333,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             [class*="text-rose-400"] { color: #E11D48 !important; }
             [class*="text-purple-400"] { color: #7C3AED !important; }
             [class*="text-cyan-400"] { color: #0891B2 !important; }
+            [class*="text-emerald-500/70"], .text-emerald-500\/70, [class*="text-emerald-500/"], [class*="text-emerald-500\\/"] { color: #047857 !important; }
 
             /* Universal Border Overlay Settings */
             [class*="border-white/"], [class*="border-white\\/"] { border-color: rgba(0, 0, 0, 0.08) !important; }
@@ -1258,22 +1341,28 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
             .border-white\\/10 { border-color: rgba(0, 0, 0, 0.12) !important; }
             .border-white\\/20 { border-color: rgba(0, 0, 0, 0.18) !important; }
             [class*="border-emerald-500/"] { border-color: rgba(4, 120, 87, 0.25) !important; }
+            .border-gray-700, [class*="border-gray-700"] { border-color: #CBD5E1 !important; }
+            .border-gray-800, [class*="border-gray-800"] { border-color: #CBD5E1 !important; }
 
-            /* Inputs & Direct Visual Modifiers */
+            /* Inputs, Drops, Selects & Direct Visual Modifiers */
             button, select, select option, input, textarea { color: #1F2937 !important; }
-            select, select option {
+            
+            /* Make inputs and selects have pristine white backgrounds with elegant soft borders */
+            select, select option, input, textarea,
+            [class*="bg-[#1C2326]"] select, [class*="bg-[#1c2326]"] select,
+            select[class*="bg-[#1C2326]"], select[class*="bg-[#1c2326]"],
+            input[class*="bg-[#1C2326]"], input[class*="bg-[#1c2326]"],
+            textarea[class*="bg-[#1C2326]"], textarea[class*="bg-[#1c2326]"] {
               background-color: #FFFFFF !important;
               background: #FFFFFF !important;
               color: #1F2937 !important;
-            }
-            input, textarea {
-              background-color: #FFFFFF !important;
-              color: #1F2937 !important;
+              border-color: #CBD5E1 !important;
             }
             input::placeholder, textarea::placeholder { color: #9CA3AF !important; }
             .text-emerald-500 { color: #047857 !important; }
             
             /* Green Badges/Pills and Alerts styling */
+            [class*="bg-emerald-500/5"], .bg-emerald-500\/5 { background-color: #ECFDF5 !important; border: 1px solid #D1FAE5 !important; }
             [class*="bg-emerald-500/10"], [class*="bg-emerald-500\\/10"] { background-color: #D1FAE5 !important; color: #065F46 !important; }
             [class*="bg-rose-500/10"], [class*="bg-rose-500\\/10"] { background-color: #FFE4E6 !important; color: #9F1239 !important; }
             [class*="bg-sky-500/10"], [class*="bg-sky-500\\/10"] { background-color: #E0F2FE !important; color: #075985 !important; }

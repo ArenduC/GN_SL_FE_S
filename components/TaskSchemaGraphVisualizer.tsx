@@ -56,11 +56,91 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem('user_project_theme') || 'dark');
+
+  useEffect(() => {
+    const handleThemeUpdate = () => {
+      setActiveTheme(localStorage.getItem('user_project_theme') || 'dark');
+    };
+    window.addEventListener('storage', handleThemeUpdate);
+    const interval = setInterval(handleThemeUpdate, 1000);
+    return () => {
+      window.removeEventListener('storage', handleThemeUpdate);
+      clearInterval(interval);
+    };
+  }, []);
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const visualizerRef = useRef<HTMLDivElement>(null);
   
   // Element refs to dynamically calculate connections
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const toggleFullscreen = async () => {
+    if (!visualizerRef.current) return;
+    try {
+      if (!document.fullscreenElement) {
+        // Attempt native fullscreen
+        if (visualizerRef.current.requestFullscreen) {
+          await visualizerRef.current.requestFullscreen();
+        } else {
+          // Fallback to CSS fullscreen
+          setIsFullscreen(true);
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else {
+          setIsFullscreen(false);
+        }
+      }
+    } catch (err) {
+      console.warn('Native fullscreen request failed or blocked, falling back to viewport-level CSS fullscreen:', err);
+      // Fallback to CSS fullscreen if request was blocked
+      setIsFullscreen(!isFullscreen);
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        } else {
+          setIsFullscreen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        setDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight
+        });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [isFullscreen]);
 
   // 1. Build the Node & Edge lists matching the user's specific JSON graph structure
   const graphData = useMemo(() => {
@@ -244,10 +324,215 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
   }, [graphData]);
 
   return (
-    <div className="w-full bg-[#0B0F11] border border-white/10 rounded-xl overflow-hidden relative shadow-2xl flex flex-col h-[520px] select-none">
+    <div 
+      ref={visualizerRef}
+      className={`bg-[#0B0F11] graph-container overflow-hidden relative flex flex-col select-none transition-all duration-300 ${
+        isFullscreen 
+          ? "fixed inset-0 z-[9999] w-screen h-screen p-0 rounded-none border-0" 
+          : "w-full border border-white/10 rounded-xl shadow-2xl h-[520px]"
+      }`}
+    >
+      {activeTheme === 'light' && (
+        <style>{`
+          .graph-container {
+            background-color: #FFFFFF !important;
+            border-color: #CBD5E1 !important;
+            color: #1F2937 !important;
+          }
+          .graph-header {
+            background-color: #F3F4F6 !important;
+            border-bottom-color: #CBD5E1 !important;
+          }
+          .graph-header span {
+            color: #111827 !important;
+          }
+          .graph-zoom {
+            background-color: #E5E7EB !important;
+            border-color: #CBD5E1 !important;
+          }
+          .graph-zoom button {
+            color: #4B5563 !important;
+          }
+          .graph-zoom button:hover {
+            background-color: rgba(0, 0, 0, 0.08) !important;
+            color: #111827 !important;
+          }
+          .graph-zoom span {
+            color: #374151 !important;
+          }
+          .graph-btn {
+            background-color: #E5E7EB !important;
+            border-color: #CBD5E1 !important;
+            color: #374151 !important;
+          }
+          .graph-btn:hover {
+            background-color: #D1D5DB !important;
+            color: #111827 !important;
+          }
+          .graph-column-header {
+            border-bottom-color: #CBD5E1 !important;
+            color: #4B5563 !important;
+          }
+          .graph-placeholder {
+            background-color: #F9FAFB !important;
+            border-color: #E2E8F0 !important;
+            color: #6B7280 !important;
+          }
+          .graph-card {
+            background-color: #FFFFFF !important;
+            border-color: #E2E8F0 !important;
+            color: #1F2937 !important;
+          }
+          .graph-card:hover {
+            border-color: #CBD5E1 !important;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02) !important;
+          }
+          .graph-card.selected-card {
+            border-color: #10B981 !important;
+            background-color: #F0FDF4 !important;
+          }
+          .graph-card-header {
+            background-color: #F3F4F6 !important;
+            color: #4B5563 !important;
+            border-bottom-color: #E2E8F0 !important;
+          }
+          .graph-card-header.selected-header {
+            background-color: #D1FAE5 !important;
+            color: #065F46 !important;
+            border-bottom-color: #A7F3D0 !important;
+          }
+          .graph-card-body {
+            color: #1F2937 !important;
+          }
+          .graph-card-row:hover {
+            background-color: rgba(0, 0, 0, 0.03) !important;
+          }
+          .graph-card-row-text {
+            color: #4B5563 !important;
+          }
+          .graph-card-row-val {
+            color: #111827 !important;
+          }
+          .graph-card-title {
+            color: #111827 !important;
+          }
+          .graph-card-title:hover {
+            color: #2563EB !important;
+          }
+          .graph-card-footer {
+            background-color: #F9FAFB !important;
+            border-top-color: #E2E8F0 !important;
+            color: #6B7280 !important;
+          }
+          .graph-help-footer {
+            background-color: #F3F4F6 !important;
+            border-top-color: #E2E8F0 !important;
+            color: #4B5563 !important;
+          }
+        `}</style>
+      )}
+      {activeTheme === 'gray' && (
+        <style>{`
+          .graph-container {
+            background-color: #1F2426 !important;
+            border-color: #384246 !important;
+            color: #F3F4F6 !important;
+          }
+          .graph-header {
+            background-color: #181C1E !important;
+            border-bottom-color: #384246 !important;
+          }
+          .graph-header span {
+            color: #FFFFFF !important;
+          }
+          .graph-zoom {
+            background-color: #2D3639 !important;
+            border-color: #384246 !important;
+          }
+          .graph-zoom button {
+            color: #CBD5E1 !important;
+          }
+          .graph-zoom button:hover {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+            color: #FFFFFF !important;
+          }
+          .graph-zoom span {
+            color: #9CA3AF !important;
+          }
+          .graph-btn {
+            background-color: #2D3639 !important;
+            border-color: #384246 !important;
+            color: #D1D5DB !important;
+          }
+          .graph-btn:hover {
+            background-color: #384246 !important;
+            color: #FFFFFF !important;
+          }
+          .graph-column-header {
+            border-bottom-color: #384246 !important;
+            color: #9CA3AF !important;
+          }
+          .graph-placeholder {
+            background-color: #181C1E !important;
+            border-color: #2D3538 !important;
+            color: #9CA3AF !important;
+          }
+          .graph-card {
+            background-color: #2D3639 !important;
+            border-color: #384246 !important;
+            color: #F3F4F6 !important;
+          }
+          .graph-card:hover {
+            border-color: #4B5563 !important;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3) !important;
+          }
+          .graph-card.selected-card {
+            border-color: #10B981 !important;
+            background-color: #162E2E !important;
+          }
+          .graph-card-header {
+            background-color: #181C1E !important;
+            color: #D1D5DB !important;
+            border-bottom-color: #384246 !important;
+          }
+          .graph-card-header.selected-header {
+            background-color: rgba(16, 185, 129, 0.15) !important;
+            color: #34D399 !important;
+            border-bottom-color: rgba(16, 185, 129, 0.25) !important;
+          }
+          .graph-card-body {
+            color: #F3F4F6 !important;
+          }
+          .graph-card-row:hover {
+            background-color: rgba(255, 255, 255, 0.02) !important;
+          }
+          .graph-card-row-text {
+            color: #D1D5DB !important;
+          }
+          .graph-card-row-val {
+            color: #FFFFFF !important;
+          }
+          .graph-card-title {
+            color: #FFFFFF !important;
+          }
+          .graph-card-title:hover {
+            color: #60A5FA !important;
+          }
+          .graph-card-footer {
+            background-color: #181C1E !important;
+            border-top-color: #384246 !important;
+            color: #9CA3AF !important;
+          }
+          .graph-help-footer {
+            background-color: #181C1E !important;
+            border-top-color: #384246 !important;
+            color: #9CA3AF !important;
+          }
+        `}</style>
+      )}
       
       {/* Visualizer header controls */}
-      <div className="bg-[#101618] border-b border-white/10 px-4 py-3 flex items-center justify-between z-20">
+      <div className="bg-[#101618] graph-header border-b border-white/10 px-4 py-3 flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-emerald-400" />
           <span className="text-[11px] font-mono font-bold tracking-wider uppercase text-white">
@@ -259,7 +544,7 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
         </div>
         
         <div className="flex items-center gap-2">
-          <div className="bg-[#1C2326] border border-white/5 rounded-lg p-0.5 flex items-center gap-1">
+          <div className="bg-[#1C2326] graph-zoom border border-white/5 rounded-lg p-0.5 flex items-center gap-1">
             <button
               onClick={() => handleZoom('out')}
               className="text-[10px] text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-white/5 font-mono cursor-pointer transition-all"
@@ -283,11 +568,29 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
               Reset
             </button>
           </div>
+
+          <button
+            onClick={toggleFullscreen}
+            className="text-gray-400 graph-btn hover:text-white text-xs font-bold px-2.5 py-1 bg-[#1C2326] border border-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer flex items-center gap-1.5"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Exit Fullscreen</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Fullscreen</span>
+              </>
+            )}
+          </button>
           
           {onClose && (
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-xs font-bold px-2 py-1 bg-[#1C2326] border border-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
+              className="text-gray-400 graph-btn hover:text-white text-xs font-bold px-2.5 py-1 bg-[#1C2326] border border-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
             >
               ✕ Close
             </button>
@@ -304,7 +607,11 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
         onMouseLeave={handleMouseUp}
         className="flex-grow w-full relative overflow-hidden cursor-grab active:cursor-grabbing"
         style={{
-          backgroundImage: 'radial-gradient(#1E2629 1px, transparent 1px)',
+          backgroundImage: activeTheme === 'light' 
+            ? 'radial-gradient(#CBD5E1 1.5px, transparent 1.5px)' 
+            : activeTheme === 'gray'
+            ? 'radial-gradient(#374151 1.2px, transparent 1.2px)'
+            : 'radial-gradient(#1E2629 1px, transparent 1px)',
           backgroundSize: '16px 16px',
         }}
       >
@@ -378,11 +685,11 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
             
             {/* COLUMN 1: UPSTREAM PARENTS */}
             <div className="w-[280px] flex flex-col gap-6">
-              <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest px-1 font-bold border-b border-white/5 pb-1 select-none">
+              <div className="text-[10px] font-mono graph-column-header text-gray-500 uppercase tracking-widest px-1 font-bold border-b border-white/5 pb-1 select-none">
                 Parents / Upstream (ID ref)
               </div>
               {groupedNodes.parents.length === 0 ? (
-                <div className="bg-[#0F1517] border border-white/5 rounded-lg p-6 text-center text-[10px] text-gray-500 border-dashed select-none">
+                <div className="bg-[#0F1517] graph-placeholder border border-white/5 rounded-lg p-6 text-center text-[10px] text-gray-500 border-dashed select-none">
                   Absolute Genesis Node (No relational parent key)
                 </div>
               ) : (
@@ -399,7 +706,7 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
 
             {/* COLUMN 2: ACTIVE FOCUS & SIBLINGS */}
             <div className="w-[280px] flex flex-col gap-6">
-              <div className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest px-1 font-bold border-b border-emerald-500/10 pb-1 select-none">
+              <div className="text-[10px] font-mono graph-column-header text-emerald-500 uppercase tracking-widest px-1 font-bold border-b border-emerald-500/10 pb-1 select-none">
                 Focus Instance & Peer Tasks ({groupedNodes.selectedAndSiblings.length})
               </div>
               {groupedNodes.selectedAndSiblings.map(node => (
@@ -414,11 +721,11 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
 
             {/* COLUMN 3: DOWNSTREAM DEPENDENT CHILDREN */}
             <div className="w-[280px] flex flex-col gap-6">
-              <div className="text-[10px] font-mono text-blue-400 uppercase tracking-widest px-1 font-bold border-b border-white/5 pb-1 select-none">
+              <div className="text-[10px] font-mono graph-column-header text-blue-400 uppercase tracking-widest px-1 font-bold border-b border-white/5 pb-1 select-none">
                 Downstream Leaf Keys ({groupedNodes.children.length})
               </div>
               {groupedNodes.children.length === 0 ? (
-                <div className="bg-[#0F1517] border border-white/5 rounded-lg p-6 text-center text-[10px] text-gray-500 border-dashed select-none">
+                <div className="bg-[#0F1517] graph-placeholder border border-white/5 rounded-lg p-6 text-center text-[10px] text-gray-500 border-dashed select-none">
                   Leaf Node (No linked sub-dependencies spawned)
                 </div>
               ) : (
@@ -438,7 +745,7 @@ export const TaskSchemaGraphVisualizer: React.FC<TaskSchemaGraphVisualizerProps>
       </div>
       
       {/* Help footer bar */}
-      <div className="bg-[#101618] border-t border-white/5 px-4 py-2 flex items-center justify-between text-[10px] text-gray-500 font-mono">
+      <div className="bg-[#101618] graph-help-footer border-t border-white/5 px-4 py-2 flex items-center justify-between text-[10px] text-gray-500 font-mono">
         <div className="flex items-center gap-2">
           <Activity className="w-3.1 h-3.1 text-blue-400 animate-pulse" />
           <span>Interactive Canvas. Drag to pan workspace, scroll to zoom. Click any key link to traverse tree.</span>
@@ -484,15 +791,15 @@ const SchemaNodeCard: React.FC<SchemaNodeCardProps> = ({ node, onSelectTask, inn
     <div 
       ref={innerRef}
       onClick={handleCardClick}
-      className={`node-card text-left bg-[#0E1315] border rounded-lg overflow-hidden shadow-lg transition-all duration-250 cursor-pointer min-w-[260px] ${
+      className={`node-card graph-card text-left bg-[#0E1315] border rounded-lg overflow-hidden shadow-lg transition-all duration-250 cursor-pointer min-w-[260px] ${
         isSelected 
-          ? 'border-emerald-500 bg-[#0F1C1C]' 
+          ? 'border-emerald-500 bg-[#0F1C1C] selected-card' 
           : 'border-white/10 hover:border-white/20 hover:shadow-xl'
       }`}
     >
       {/* 1. Header of DB Table representing Task type/role */}
-      <div className={`px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono select-none ${
-        isSelected ? 'bg-emerald-500/10 text-emerald-400 border-b border-emerald-500/10' : 'bg-[#141A1C] text-gray-400 border-b border-white/5'
+      <div className={`px-2.5 py-1.5 graph-card-header flex items-center justify-between text-[10px] font-mono select-none ${
+        isSelected ? 'bg-emerald-500/10 text-emerald-400 border-b border-emerald-500/10 selected-header' : 'bg-[#141A1C] text-gray-400 border-b border-white/5'
       }`}>
         <div className="flex items-center gap-1 font-bold">
           <Database className="w-3 h-3 flex-shrink-0 opacity-80" />
@@ -577,7 +884,7 @@ const SchemaNodeCard: React.FC<SchemaNodeCardProps> = ({ node, onSelectTask, inn
       </div>
 
       {/* Traversal pointer footer indicator */}
-      <div className="bg-[#111719] px-2 py-1 flex items-center justify-between text-[8px] font-mono text-gray-500 border-t border-white/5">
+      <div className="bg-[#111719] graph-card-footer px-2 py-1 flex items-center justify-between text-[8px] font-mono text-gray-500 border-t border-white/5">
         <span>traversal_node</span>
         <span className="nav-trigger text-blue-400 flex items-center gap-1 font-semibold hover:text-white transition-colors cursor-pointer select-none">
           TRAVERSE <ExternalLink className="w-2.5 h-2.5" />

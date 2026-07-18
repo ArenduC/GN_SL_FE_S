@@ -166,7 +166,7 @@ const DayActivityModal: React.FC<{
                                                 <div className={`w-1.5 h-1.5 rounded-full ${task.priority === 'Urgent' ? 'bg-red-500 animate-pulse' : 'bg-gray-700'}`} />
                                                 <span className="text-xs text-gray-300 font-medium group-hover/task:text-white transition-colors">{task.title}</span>
                                             </div>
-                                            <span className="text-[9px] font-mono text-gray-600 uppercase tracking-widest">Node_{task.id.slice(0,4)}</span>
+                                            <span className="text-[9px] font-mono text-emerald-500/85 uppercase tracking-widest">{task.ticketId || `Node_${task.id.slice(0,4)}`}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -360,7 +360,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
     const [generatedPlan, setGeneratedPlan] = useState<AiGeneratedProjectPlan | null>(null);
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 8;
+    const PAGINATION_LIMIT = 6;
+
+    // Server-side loaded paginated projects
+    const [paginatedProjects, setPaginatedProjects] = useState<Project[]>([]);
+    const [totalProjectsCount, setTotalProjectsCount] = useState(0);
+    const [isProjectsLoading, setIsProjectsLoading] = useState(false);
 
     // Day Activity Modal State
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -368,6 +373,38 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
 
     const [userMetrics, setUserMetrics] = useState<any>(null);
     const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(false);
+
+    // Load paginated projects from the backend
+    useEffect(() => {
+        const loadPaginatedProjects = async () => {
+            setIsProjectsLoading(true);
+            try {
+                const response = await api.data.fetchProjectsPaginated({
+                    page: currentPage,
+                    limit: PAGINATION_LIMIT,
+                    search: searchQuery.trim() || undefined,
+                    sortBy: 'updatedAt',
+                    order: 'desc'
+                });
+                if (response && response.projects) {
+                    setPaginatedProjects(response.projects as any);
+                    if (response.pagination) {
+                        setTotalProjectsCount(response.pagination.totalItems);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load paginated projects on dashboard:", err);
+            } finally {
+                setIsProjectsLoading(false);
+            }
+        };
+        loadPaginatedProjects();
+    }, [currentPage, searchQuery, projects]);
+
+    // Reset page index on search change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
 
     useEffect(() => {
         const loadMetrics = async () => {
@@ -411,26 +448,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
         return 'Evening';
     }, []);
 
-    // Optimized Filtering & Sorting Logic
-    const filteredAndSortedProjects = useMemo(() => {
-        let filtered = projects;
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            filtered = projects.filter(p => 
-                p.name.toLowerCase().includes(query) || 
-                p.description?.toLowerCase().includes(query)
-            );
-        }
-
-        return [...filtered].sort((a, b) => {
-            const timeA = new Date(a.updatedAt || a.createdAt).getTime();
-            const timeB = new Date(b.updatedAt || b.createdAt).getTime();
-            return timeB - timeA;
-        });
-    }, [projects, searchQuery]);
-
-    const totalPages = Math.ceil(filteredAndSortedProjects.length / ITEMS_PER_PAGE);
-    const paginatedProjects = filteredAndSortedProjects.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(totalProjectsCount / PAGINATION_LIMIT);
 
     const handleFileProcessed = async (csvContent: string) => {
         setIsAiProcessing(true);
@@ -465,7 +483,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
                     <button onClick={onCreateProject} className="px-5 py-2 bg-white text-black font-bold rounded-lg hover:scale-105 transition-all flex items-center gap-2 text-xs shadow-xl shadow-white/5">
                         <PlusIcon className="w-4 h-4" /> New Node
                     </button>
-                    <button onClick={() => exportTasksToCsv(filteredAndSortedProjects, users)} className="p-2.5 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all">
+                    <button onClick={() => exportTasksToCsv(projects, users)} className="p-2.5 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all">
                         <DownloadIcon className="w-4 h-4" />
                     </button>
                 </div>
@@ -499,7 +517,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
             <div className="grid grid-cols-12 gap-6">
                 <div className="col-span-12 lg:col-span-9 space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <h3 className="text-base font-bold text-white flex items-center gap-2">Project Canvas <span className="text-[10px] font-medium text-gray-600 bg-white/5 px-2 py-0.5 rounded-full">{filteredAndSortedProjects.length}</span></h3>
+                        <h3 className="text-base font-bold text-white flex items-center gap-2">Project Canvas <span className="text-[10px] font-medium text-gray-600 bg-white/5 px-2 py-0.5 rounded-full">{totalProjectsCount}</span></h3>
                         <div className="flex items-center gap-3 w-full sm:w-auto">
                             <div className="relative group flex-grow sm:flex-grow-0">
                                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 group-focus-within:text-emerald-400 transition-colors" />
@@ -559,7 +577,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ projects, users, c
                         </div>
                     )}
                     
-                    {totalPages > 1 && <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} itemsPerPage={ITEMS_PER_PAGE} totalItems={filteredAndSortedProjects.length} />}
+                    {totalPages > 1 && <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} itemsPerPage={PAGINATION_LIMIT} totalItems={totalProjectsCount} />}
                 </div>
 
                 <div className="col-span-12 lg:col-span-3 space-y-4">

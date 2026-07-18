@@ -75,6 +75,8 @@ export interface Task {
   taskType?: 'task' | 'bug';
   parentId?: string | null;
   referenceNo?: string;
+  columnId?: string;
+  currentColumnId?: string;
 }
 
 export interface Column {
@@ -124,15 +126,17 @@ export interface Project {
   id: string;
   name: string;
   description: string;
-  board: BoardData;
-  members: string[];
+  board?: BoardData;
+  members: (string | PaginatedProjectMember)[];
   creatorId: string;
   createdAt: string;
   updatedAt: string;
-  chatMessages: ChatMessage[];
-  links: ProjectLink[];
-  sprints: Sprint[];
-  filterSegments: FilterSegment[];
+  chatMessages?: ChatMessage[];
+  links?: ProjectLink[];
+  sprints?: Sprint[];
+  filterSegments?: FilterSegment[];
+  meshSyncProgress?: number;
+  videoMeetingActive?: boolean;
 }
 
 export interface AppState {
@@ -266,3 +270,173 @@ export interface Feedback {
   };
   status: 'new' | 'seen' | 'in-progress' | 'done';
 }
+
+// ==========================================
+// Paginated API Payload & Response Contracts
+// ==========================================
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+// 1. Dashboard Project List Pagination
+export interface ProjectPaginationMeta {
+  currentPage: number;
+  limit: number;
+  totalPages: number;
+  totalItems: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface GetProjectsPayload {
+  page: number;
+  limit: number;
+  search?: string;
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'meshSync';
+  order?: 'asc' | 'desc';
+}
+
+export interface PaginatedProjectMember {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  role: string;
+}
+
+export interface PaginatedProjectSummary {
+  id: string;
+  shortId?: string;
+  name: string;
+  description: string;
+  creatorId: string;
+  createdAt: string;
+  updatedAt: string;
+  meshSyncProgress: number;
+  videoMeetingActive?: boolean;
+  membersCount: number;
+  members: PaginatedProjectMember[];
+}
+
+export interface PaginatedProjectsResponse {
+  projects: PaginatedProjectSummary[];
+  pagination: ProjectPaginationMeta;
+}
+
+// 2. Share / Active Invite Nodes Pagination
+export interface GetInviteLinksPayload {
+  projectId: string;
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedInviteLink {
+  id: string;
+  projectId: string;
+  creatorId: string;
+  role: UserRole;
+  code: string;
+  inviteUrl: string;
+  expiresAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedInviteLinksResponse {
+  inviteLinks: PaginatedInviteLink[];
+  pagination: PaginationMeta;
+}
+
+// 3. Project Columns Pagination
+export interface GetColumnsPayload {
+  projectId: string;
+  page: number;
+  limit: number; // default: 10
+}
+
+export interface PaginatedColumnSummary {
+  id: string;
+  title: string;
+  position: number;
+  totalTasksCount: number;
+}
+
+export interface PaginatedColumnsResponse {
+  projectId: string;
+  columns: PaginatedColumnSummary[];
+  columnOrder: string[];
+  pagination: PaginationMeta;
+}
+
+// 4. Column Tasks Pagination
+export interface GetColumnTasksPayload {
+  columnId: string;
+  page: number;
+  limit: number; // default: 20
+  search?: string;
+  priority?: TaskPriority;
+}
+
+export interface PaginatedColumnTasksResponse {
+  columnId: string;
+  tasks: Task[];
+  pagination: PaginationMeta;
+}
+
+export interface BoardSort {
+  field: string;
+  order: 'asc' | 'desc';
+}
+
+export interface BoardFilters {
+  search?: string;                      // Optional text search matching title, ticketId, tags, etc.
+  priority?: TaskPriority;              // Optional single priority for backward compatibility/simplicity
+  priorities?: string[];                // Optional: Array of multiple priorities selected
+  taskType?: 'task' | 'bug';            // Optional single task type
+  taskTypes?: ('task' | 'bug')[];       // Optional: Array of selected task types
+  parentId?: string | null;             // Optional filter for child nodes of a given task
+  savedFilterId?: string;               // Optional: Chosen filter segment ID
+  assignees?: string[];                 // Optional: Array of selected assignee user IDs
+  reporters?: string[];                 // Optional: Array of creator/reporter user IDs
+  columns?: string[];                   // Optional: Array of selected column statuses
+  tags?: string[];                      // Optional: Array of selected tags
+  sprints?: string[];                   // Optional: Array of active sprint IDs
+  dateRange?: {
+    field: 'createdAt' | 'dueDate';
+    start?: string;
+    end?: string;
+  };
+  relativeDate?: {
+    condition: 'within' | 'older_than';
+    value: number;
+    unit: 'seconds' | 'minutes' | 'hours' | 'days' | 'months' | 'years';
+  };
+}
+
+export interface GetProjectBoardPaginatedPayload {
+  projectId: string;
+  page: number; // page index for tasks
+  limit: number; // tasks limit, default: 20
+  columnPage: number; // page index for columns, default: 1
+  columnLimit: number; // columns limit, default: 10
+  sort?: BoardSort; // Optional sort options
+  filters?: BoardFilters; // Consolidated filter object
+}
+
+export interface PaginatedBoardResponse {
+  projectId: string;
+  columns: PaginatedColumnSummary[];
+  columnOrder: string[];
+  tasks: Task[];
+  pagination: {
+    tasks: PaginationMeta;
+    columns: PaginationMeta;
+  };
+}
+
+

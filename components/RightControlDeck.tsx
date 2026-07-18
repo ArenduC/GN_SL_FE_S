@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Trash2 } from 'lucide-react';
+import { Bookmark, Trash2, Server, RefreshCw, FileText, Bug, FolderTree, ChevronLeft, ChevronRight } from 'lucide-react';
 import { 
   SearchIcon, 
   XIcon, 
@@ -79,6 +79,19 @@ interface RightControlDeckProps {
   filterSegments?: FilterSegment[];
   addFilterSegment?: (name: string, filters: FilterSegment['filters']) => Promise<void>;
   deleteFilterSegment?: (segmentId: string) => Promise<void>;
+
+  // Server Scope Engine props
+  refreshBoard?: () => void;
+  boardLoading?: boolean;
+  apiBoardData?: any;
+  tasksPage?: number;
+  setTasksPage?: (page: number) => void;
+  tasksLimit?: number;
+  setTasksLimit?: (limit: number) => void;
+  taskTypeFilter?: string;
+  setTaskTypeFilter?: (type: string) => void;
+  parentIdFilter?: string | null;
+  setParentIdFilter?: (id: string | null) => void;
 }
 
 export const RightControlDeck: React.FC<RightControlDeckProps> = ({
@@ -119,10 +132,23 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   projectColumnsList = [],
   filterSegments,
   addFilterSegment,
-  deleteFilterSegment
+  deleteFilterSegment,
+
+  // Server Scope Engine props
+  refreshBoard,
+  boardLoading,
+  apiBoardData,
+  tasksPage,
+  setTasksPage,
+  tasksLimit,
+  setTasksLimit,
+  taskTypeFilter,
+  setTaskTypeFilter,
+  parentIdFilter,
+  setParentIdFilter
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'filters' | 'actions' | 'analytics' | 'saved'>('filters');
+  const [activeTab, setActiveTab] = useState<'filters' | 'actions' | 'analytics' | 'saved' | 'scope'>(refreshBoard ? 'scope' : 'filters');
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [newFilterName, setNewFilterName] = useState('');
   const [savedFilters, setSavedFilters] = useState<SavedFilterItem[]>(() => {
@@ -206,7 +232,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     }
   };
 
-  const handleTabClick = (tab: 'filters' | 'actions' | 'analytics' | 'saved') => {
+  const handleTabClick = (tab: 'filters' | 'actions' | 'analytics' | 'saved' | 'scope') => {
     if (isOpen) {
       if (activeTab === tab) {
         setIsOpen(false);
@@ -310,6 +336,12 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                   <>
                     <Bookmark className="w-4 h-4 text-sky-400" />
                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">SAVED FILTERS</h3>
+                  </>
+                )}
+                {activeTab === 'scope' && (
+                  <>
+                    <Server className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">SERVER SCOPE</h3>
                   </>
                 )}
               </div>
@@ -875,6 +907,152 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                 </div>
               )}
 
+              {/* ======================================= */}
+              {/*           TAB 5: SERVER SCOPE           */}
+              {/* ======================================= */}
+              {activeTab === 'scope' && refreshBoard && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-150">
+                  {/* Status Connection Card */}
+                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${boardLoading ? 'bg-blue-400' : 'bg-emerald-400'}`}></span>
+                          <span className={`relative inline-flex rounded-full h-2 w-2 ${boardLoading ? 'bg-blue-500' : 'bg-emerald-500'}`}></span>
+                        </span>
+                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">Database Status</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => refreshBoard()}
+                        disabled={boardLoading}
+                        className={`w-7 h-7 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer ${boardLoading ? 'animate-spin text-blue-400' : ''}`}
+                        title="Synchronize board with server"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Server Scope Engine
+                      </h4>
+                      <p className="text-[10px] text-gray-400 font-mono leading-relaxed">
+                        {boardLoading ? (
+                          'Synchronizing database payloads...'
+                        ) : apiBoardData?.pagination?.tasks ? (
+                          `Displaying ${Math.min(((tasksPage || 1) - 1) * (tasksLimit || 20) + 1, apiBoardData.pagination.tasks.total)}-${Math.min((tasksPage || 1) * (tasksLimit || 20), apiBoardData.pagination.tasks.total)} of ${apiBoardData.pagination.tasks.total} tasks`
+                        ) : (
+                          'Offline / Client-side Cache Mode'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Scope Type Filter Group */}
+                  {setTaskTypeFilter && taskTypeFilter !== undefined && (
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Node Type Filters</label>
+                      <div className="grid grid-cols-3 bg-[#1C2326] border border-white/5 rounded-xl overflow-hidden p-1">
+                        <button
+                          type="button"
+                          onClick={() => { setTaskTypeFilter('all'); setTasksPage?.(1); }}
+                          className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${taskTypeFilter === 'all' ? 'bg-white text-black font-black' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setTaskTypeFilter('task'); setTasksPage?.(1); }}
+                          className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${taskTypeFilter === 'task' ? 'bg-emerald-500 text-white font-black' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          <FileText className="w-2.5 h-2.5" />
+                          Tasks
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setTaskTypeFilter('bug'); setTasksPage?.(1); }}
+                          className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${taskTypeFilter === 'bug' ? 'bg-rose-500 text-white font-black' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          <Bug className="w-2.5 h-2.5" />
+                          Bugs
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hierarchy Drill-Down State */}
+                  <div className="space-y-2">
+                    <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Scope Hierarchy</label>
+                    {parentIdFilter && setParentIdFilter ? (
+                      <div className="flex items-center justify-between bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl p-3 text-[10px] font-bold uppercase tracking-wider gap-2">
+                        <div className="flex items-center gap-2">
+                          <FolderTree className="w-4 h-4 text-blue-400" />
+                          <span>Drilled Down View</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setParentIdFilter(null); setTasksPage?.(1); }}
+                          className="w-5 h-5 bg-white/5 hover:bg-red-550/20 text-gray-400 hover:text-red-400 rounded flex items-center justify-center font-black cursor-pointer transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-gray-400 font-mono tracking-widest uppercase border border-white/5 bg-white/[0.02] rounded-xl p-3 text-center">
+                        All Hierarchies Active
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pagination Section */}
+                  {apiBoardData?.pagination?.tasks && setTasksPage && setTasksLimit && tasksPage && tasksLimit && (
+                    <div className="space-y-4 pt-4 border-t border-white/5">
+                      <div className="space-y-1.5">
+                        <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Items Per Page</label>
+                        <select
+                          value={tasksLimit}
+                          onChange={(e) => { setTasksLimit(Number(e.target.value)); setTasksPage(1); }}
+                          className="w-full bg-[#1C2326] border border-white/5 text-gray-300 text-xs font-semibold rounded-xl p-2.5 uppercase tracking-wide focus:outline-none cursor-pointer"
+                        >
+                          <option value={10}>10 tasks per page</option>
+                          <option value={20}>20 tasks per page</option>
+                          <option value={50}>50 tasks per page</option>
+                          <option value={100}>100 tasks per page</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Navigation Controls</label>
+                        <div className="flex items-center justify-between bg-black/20 border border-white/5 p-2 rounded-xl">
+                          <button
+                            type="button"
+                            onClick={() => setTasksPage(prev => Math.max(1, prev - 1))}
+                            disabled={tasksPage === 1}
+                            className="w-9 h-9 rounded-lg bg-[#1C2326] border border-white/5 text-gray-300 disabled:opacity-30 hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          
+                          <span className="text-[10px] font-black font-mono text-white tracking-widest uppercase">
+                            PAGE {tasksPage} / {apiBoardData.pagination.tasks.totalPages || 1}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => setTasksPage(prev => Math.min(apiBoardData.pagination.tasks.totalPages || 1, prev + 1))}
+                            disabled={tasksPage >= (apiBoardData.pagination.tasks.totalPages || 1)}
+                            className="w-9 h-9 rounded-lg bg-[#1C2326] border border-white/5 text-gray-300 disabled:opacity-30 hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
 
           </div>
@@ -980,6 +1158,25 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
             Saved Filters
           </div>
         </button>
+
+        {/* Tab 5: Server Scope Engine (Conditional) */}
+        {refreshBoard && (
+          <button
+            onClick={() => handleTabClick('scope')}
+            className={`p-2.5 rounded-xl transition-all relative group cursor-pointer ${
+              isOpen && activeTab === 'scope'
+                ? 'bg-emerald-500 text-black font-black shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+            title="Server Scope"
+          >
+            <Server className="w-5 h-5" />
+            {/* Tooltip */}
+            <div className="absolute right-14 top-1/2 -translate-y-1/2 bg-black text-[9px] text-gray-300 font-extrabold uppercase tracking-widest px-2 py-1 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 block">
+              Server Scope
+            </div>
+          </button>
+        )}
 
         </div>
 

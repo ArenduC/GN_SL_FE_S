@@ -22,7 +22,19 @@ export const ProjectListRow: React.FC<ProjectListRowProps> = ({ project, users, 
   const totalTasks = Object.keys(tasks).length;
   const doneColumn = (Object.values(columns || {}) as Column[]).find(c => c.title.toLowerCase() === 'done');
   const completedTasks = doneColumn ? doneColumn.taskIds.length : 0;
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  
+  const progress = project.meshSyncProgress !== undefined 
+    ? project.meshSyncProgress 
+    : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
+
+  const membersList = React.useMemo(() => {
+    return (project.members || []).map(m => {
+      if (typeof m === 'string') {
+        return users[m];
+      }
+      return m; // m is a PaginatedProjectMember
+    }).filter(Boolean) as User[];
+  }, [project.members, users]);
 
   return (
     <div
@@ -53,17 +65,17 @@ export const ProjectListRow: React.FC<ProjectListRowProps> = ({ project, users, 
       </div>
 
       <div className="col-span-2 flex items-center justify-end -space-x-2">
-        {(project.members || []).slice(0, 4).map(id => users[id] && (
+        {membersList.slice(0, 4).map(u => (
           <UserAvatar
-            key={id}
-            user={users[id]}
-            isOnline={onlineUsers.has(id)}
+            key={u.id}
+            user={u}
+            isOnline={onlineUsers.has(u.id)}
             className="w-5 h-5 rounded-full ring-1 ring-[#131C1B]"
           />
         ))}
-        {(project.members || []).length > 4 && (
+        {membersList.length > 4 && (
           <div className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center text-[7px] font-black ring-1 ring-[#131C1B] text-gray-500 uppercase">
-            +{(project.members || []).length - 4}
+            +{membersList.length - 4}
           </div>
         )}
       </div>

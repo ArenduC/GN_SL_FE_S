@@ -7,7 +7,7 @@ let messageCallback: ((payload: any) => void) | null = null;
 let presenceCallback: ((data: any) => void) | null = null;
 
 export const getSocketUrl = (): string => {
-    return 'https://robinson-conditioning-specialty-customs.trycloudflare.com';
+    return 'https://gn-sl-chat-api.vercel.app';
 };
 
 export const getSocket = (): Socket | null => {

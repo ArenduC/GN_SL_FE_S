@@ -22,12 +22,28 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, users, online
   const totalTasks = Object.keys(tasks).length;
   const doneColumn = (Object.values(columns) as Column[]).find(c => c.title.toLowerCase() === 'done');
   const completedTasks = doneColumn ? doneColumn.taskIds.length : 0;
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  
+  const progress = project.meshSyncProgress !== undefined 
+    ? project.meshSyncProgress 
+    : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
+
   const creator = users[project.creatorId];
 
   const meetLink = useMemo(() => {
+    if (project.videoMeetingActive) {
+      return { url: '#' };
+    }
     return (project.links || []).find(link => link.url.includes('meet.google.com'));
-  }, [project.links]);
+  }, [project.links, project.videoMeetingActive]);
+
+  const membersList = useMemo(() => {
+    return (project.members || []).map(m => {
+      if (typeof m === 'string') {
+        return users[m];
+      }
+      return m; // m is a PaginatedProjectMember
+    }).filter(Boolean) as User[];
+  }, [project.members, users]);
 
   return (
     <div 
@@ -82,17 +98,17 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, users, online
 
         <div className="flex items-center justify-between pt-3 border-t border-white/5">
             <div className="flex items-center -space-x-2">
-                {(project.members || []).slice(0, 3).map(id => users[id] && (
+                {membersList.slice(0, 3).map(u => (
                     <UserAvatar
-                        key={id}
-                        user={users[id]}
-                        isOnline={onlineUsers.has(id)}
+                        key={u.id}
+                        user={u}
+                        isOnline={onlineUsers.has(u.id)}
                         className="w-6 h-6 rounded-full ring-1 ring-[#131C1B] text-[8px]"
                     />
                 ))}
-                {(project.members || []).length > 3 && (
+                {membersList.length > 3 && (
                     <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-[8px] font-bold ring-1 ring-[#131C1B] text-gray-400">
-                        +{(project.members || []).length - 3}
+                        +{membersList.length - 3}
                     </div>
                 )}
             </div>

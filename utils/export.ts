@@ -19,7 +19,7 @@ const escapeCsvField = (field: string | undefined | null): string => {
 export const exportTasksToCsv = (projects: Project[], users: Record<string, User>) => {
   const headers = [
     'Ticket ID', 'Type', 'Project ID', 'Project Name', 'Task ID', 'Task Title', 'Task Description',
-    'Status', 'Priority', 'Assignee Name', 'Creator Name', 'Created At'
+    'Status', 'Priority', 'Assignee Name', 'Creator Name', 'Created At', 'Original ID (UUID)'
   ];
 
   const rows = projects.flatMap(project => {
@@ -41,7 +41,8 @@ export const exportTasksToCsv = (projects: Project[], users: Record<string, User
         task.priority,
         assignee?.name || 'Unassigned',
         creator?.name || 'Unknown',
-        task.createdAt
+        task.createdAt,
+        task.id
       ].map(escapeCsvField).join(',');
 
       const subtaskRows = (task.subtasks || []).map(st => {
@@ -58,7 +59,8 @@ export const exportTasksToCsv = (projects: Project[], users: Record<string, User
           task.priority, // Inherit priority
           stAssignee?.name || 'Unassigned',
           creator?.name || 'Unknown',
-          st.createdAt
+          st.createdAt,
+          st.id
         ].map(escapeCsvField).join(',');
       });
 
@@ -86,7 +88,7 @@ export const exportTasksToCsv = (projects: Project[], users: Record<string, User
 export const exportAugmentedTasksToCsv = (tasks: AugmentedTask[], users: Record<string, User>, projectName: string = 'tasks') => {
   const headers = [
     'ID', 'Type', 'Title', 'Project', 'Status', 'Priority', 
-    'Assignee', 'Creator', 'Created At', 'Description'
+    'Assignee', 'Creator', 'Created At', 'Original ID (UUID)', 'Description'
   ];
 
   const rows = tasks.flatMap(task => {
@@ -103,6 +105,7 @@ export const exportAugmentedTasksToCsv = (tasks: AugmentedTask[], users: Record<
         assignee?.name || 'Unassigned',
         creator?.name || 'Unknown',
         task.createdAt,
+        task.id,
         task.description
       ].map(escapeCsvField).join(',');
 
@@ -118,6 +121,7 @@ export const exportAugmentedTasksToCsv = (tasks: AugmentedTask[], users: Record<
           stAssignee?.name || 'Unassigned',
           creator?.name || 'Unknown',
           st.createdAt,
+          st.id,
           ''
         ].map(escapeCsvField).join(',');
       });

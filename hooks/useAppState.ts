@@ -849,6 +849,43 @@ export const useAppState = (
   }, [fetchData, state.projects, currentUser]);
 
 
+  const updateTasksFromBoard = useCallback((projectId: string, tasksList: Task[]) => {
+    setState(prevState => {
+        const project = prevState.projects[projectId];
+        if (!project) return prevState;
+        
+        const updatedTasks = { ...project.board.tasks };
+        tasksList.forEach(t => {
+            if (t && t.id) {
+                const existing = updatedTasks[t.id] || {};
+                const originalTicketId = t.ticketId || t.ticket_id || existing.ticketId;
+                updatedTasks[t.id] = {
+                    ...existing,
+                    ...t,
+                    ticketId: originalTicketId
+                };
+            }
+        });
+
+        const newState = {
+            ...prevState,
+            projects: {
+                ...prevState.projects,
+                [projectId]: {
+                    ...project,
+                    board: {
+                        ...project.board,
+                        tasks: updatedTasks
+                    }
+                }
+            }
+        };
+        syncCache(newState);
+        return newState;
+    });
+  }, []);
+
+
   const deleteTask = useCallback(async (projectId: string, taskId: string, columnId: string) => {
     optimisticTouch(projectId);
     setState(prevState => {
@@ -1140,5 +1177,5 @@ export const useAppState = (
   }, [state.projects, currentUser, fetchData]);
 
 
-  return { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addTask, duplicateTask, addAiTask, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject };
+  return { state, loading, fetchData, onDragEnd, updateTask, addSubtasks, updateSubtask, deleteSubtask, addComment, addTask, duplicateTask, addAiTask, deleteTask, addColumn, deleteColumn, addProject, addProjectFromPlan, deleteProject, updateUserProfile, updateProjectMembers, sendChatMessage, addProjectLink, deleteProjectLink, addTasksBatch, addSprint, updateSprint, deleteSprint, bulkUpdateTaskSprint, completeSprint, addFilterSegment, updateFilterSegment, deleteFilterSegment, fetchChatMessagesForProject, updateTasksFromBoard };
 };

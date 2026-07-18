@@ -31,6 +31,7 @@ export const ENDPOINTS = {
     },
     DASHBOARD: {
         initialData: (userId: string) => `/dashboard/${userId}/initial-data`,
+        paginatedProjects: '/dashboard/user-projects',
     },
     PROJECTS: {
         updateColumnOrder: '/projects/column-order',
@@ -42,9 +43,13 @@ export const ENDPOINTS = {
         deleteProjectLink: '/projects/link-delete',
         acceptInvite: '/invite/accept-invite',
         getInviteLinks: '/invite/project-links',
+        getInviteLinksPaginated: '/invite/project-links-paginated',
         createInviteLink: '/invite/create-link',
         updateInviteLink: '/invite/update-link',
         submitFeedback: '/feedback/submit',
+        getColumnsPaginated: (projectId: string) => `/projects/${projectId}/columns-paginated`,
+        getColumnTasksPaginated: (columnId: string) => `/columns/${columnId}/tasks-paginated`,
+        getBoardPaginated: (projectId: string) => `/projects/${projectId}/board-paginated`,
     },
     SPRINTS: {
         addSprint: '/sprint/sprint-add',

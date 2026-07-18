@@ -8,6 +8,8 @@ import { StrictModeDroppable } from './StrictModeDroppable';
 import { Column as ColumnType, BoardData, Task, Subtask, User, ChatMessage, FilterSegment, Project, TaskPriority, AiGeneratedTaskFromFile, Sprint, NewTaskData } from '../types';
 import { Column } from './Column';
 import { Filters } from './Filters';
+import { api, generateProjectCode } from '../services/api';
+import { RefreshCw, Bug, FileText, ChevronLeft, ChevronRight, Hash, FolderTree } from 'lucide-react';
 import { RightControlDeck } from './RightControlDeck';
 import { PlusIcon, LayoutDashboardIcon, GitBranchIcon, TableIcon, LifeBuoyIcon, RocketIcon, DownloadIcon, XIcon, SparklesIcon, ZapIcon, LinkIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
 import { ProjectChat } from './ProjectChat';
@@ -68,6 +70,7 @@ interface KanbanBoardProps {
   isControlDeckOpen?: boolean;
   setIsControlDeckOpen?: (val: boolean) => void;
   fetchChatMessagesForProject: (projectId: string) => Promise<void>;
+  updateTasksFromBoard?: (tasksList: Task[]) => void;
 }
 
 const AddColumn: React.FC<{onAddColumn: (title: string) => void}> = ({ onAddColumn }) => {
@@ -206,9 +209,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     addFilterSegment, updateFilterSegment, deleteFilterSegment, duplicateTask,
     isControlDeckOpen: externalControlDeckOpen,
     setIsControlDeckOpen: setExternalControlDeckOpen,
-    fetchChatMessagesForProject
+    fetchChatMessagesForProject,
+    updateTasksFromBoard
 }) => {
   const navigate = useNavigate();
+  const [activeSegmentId, setActiveSegmentId] = useState<string | null>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
@@ -226,7 +231,165 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [tableCurrentPage, setTableCurrentPage] = useState(1);
   const TABLE_ITEMS_PER_PAGE = 15;
 
-  const [activeSegmentId, setActiveSegmentId] = useState<string | null>('all');
+  // Server-Side Paginated Board State
+  const [tasksPage, setTasksPage] = useState(1);
+  const [tasksLimit, setTasksLimit] = useState(20);
+  const [columnPage, setColumnPage] = useState(1);
+  const [columnLimit, setColumnLimit] = useState(10);
+  const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | 'task' | 'bug'>('all');
+  const [parentIdFilter, setParentIdFilter] = useState<string | null>(null);
+
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [apiBoardData, setApiBoardData] = useState<any | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const refreshBoard = useCallback(async () => {
+    if (!project?.id) return;
+    setBoardLoading(true);
+    try {
+      const response = await api.data.fetchBoardPaginated({
+        projectId: project.id,
+        page: tasksPage,
+        limit: tasksLimit,
+        columnPage,
+        columnLimit,
+        sort: {
+          field: 'updatedAt',
+          order: 'desc'
+        },
+        filters: {
+          search: searchTerm || undefined,
+          priority: priorityFilter.length > 0 ? priorityFilter[0] as TaskPriority : undefined,
+          priorities: priorityFilter.length > 0 ? priorityFilter : undefined,
+          taskType: taskTypeFilter === 'all' ? undefined : taskTypeFilter as 'task' | 'bug',
+          taskTypes: taskTypeFilter === 'all' ? undefined : [taskTypeFilter as 'task' | 'bug'],
+          parentId: parentIdFilter || undefined,
+          savedFilterId: activeSegmentId && activeSegmentId !== 'all' ? activeSegmentId : undefined,
+          assignees: assigneeFilter.length > 0 ? assigneeFilter : undefined,
+          reporters: reporterFilter.length > 0 ? reporterFilter : undefined,
+          columns: statusFilter.length > 0 ? statusFilter : undefined,
+          tags: tagFilter.length > 0 ? tagFilter : undefined,
+          sprints: sprintFilter.length > 0 ? sprintFilter : undefined,
+          dateRange: (startDate || endDate) ? {
+            field: dateTarget || 'createdAt',
+            start: startDate || undefined,
+            end: endDate || undefined,
+          } : undefined,
+          relativeDate: relativeTimeValue ? {
+            condition: relativeTimeCondition || 'within',
+            value: parseInt(relativeTimeValue) || 0,
+            unit: relativeTimeUnit || 'hours',
+          } : undefined,
+        }
+      });
+      setApiBoardData(response);
+      setApiError(null);
+      if (response && response.tasks) {
+        const rawTasks = Array.isArray(response.tasks) ? response.tasks : [];
+        const projectCode = project ? generateProjectCode(project.name) : 'TSK';
+        const normalizedTasks = rawTasks.map((task: any) => {
+          const colId = task.columnId || task.column_id || task.currentColumnId;
+          if (colId) {
+            task.columnId = colId;
+          }
+          const originalTicketId = task.ticketId || task.ticket_id;
+          let ticketId = originalTicketId;
+          if (!ticketId) {
+            const ticketTag = (task.tags || []).find((tagStr: string) => tagStr && tagStr.startsWith('ticket:'));
+            if (ticketTag) {
+              ticketId = ticketTag.split(':')[1];
+            }
+          }
+          
+          if (ticketId && projectCode === 'SLO') {
+            const numMatch = ticketId.match(/\d+/);
+            if (numMatch) {
+              const num = parseInt(numMatch[0], 10);
+              ticketId = `SLO${num.toString().padStart(5, '0')}`;
+            }
+          }
+          
+          if (ticketId) {
+            task.ticketId = ticketId;
+          } else {
+            if (projectCode === 'SLO') {
+              task.ticketId = `SLO00001`;
+            } else {
+              task.ticketId = `${projectCode}-${task.id.substring(0, 4)}`;
+            }
+          }
+          return task;
+        });
+        if (updateTasksFromBoard) {
+          updateTasksFromBoard(normalizedTasks);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to load paginated board:", err);
+      setApiError(err?.message || "Failed to fetch board data");
+    } finally {
+      setBoardLoading(false);
+    }
+  }, [
+    project,
+    tasksPage,
+    tasksLimit,
+    columnPage,
+    columnLimit,
+    searchTerm,
+    priorityFilter,
+    taskTypeFilter,
+    parentIdFilter,
+    activeSegmentId,
+    assigneeFilter,
+    reporterFilter,
+    statusFilter,
+    tagFilter,
+    sprintFilter,
+    startDate,
+    endDate,
+    relativeTimeValue,
+    relativeTimeUnit,
+    relativeTimeCondition,
+    dateTarget,
+    updateTasksFromBoard,
+  ]);
+
+  useEffect(() => {
+    refreshBoard();
+  }, [refreshBoard]);
+
+  // Interceptors to automatically refresh the server-side state upon updates
+  const handleUpdateTask = async (t: Task) => {
+    await updateTask(t);
+    refreshBoard();
+  };
+
+  const handleAddTask = async (td: NewTaskData) => {
+    await addTask(td);
+    refreshBoard();
+  };
+
+  const handleDeleteTask = async (tid: string, cid: string) => {
+    await deleteTask(tid, cid);
+    refreshBoard();
+  };
+
+  const handleAddColumn = async (titleText: string) => {
+    await addColumn(titleText);
+    refreshBoard();
+  };
+
+  const handleDeleteColumn = async (cid: string) => {
+    await deleteColumn(cid);
+    refreshBoard();
+  };
+
+  const handleDuplicateTask = async (tid: string) => {
+    await duplicateTask(tid);
+    refreshBoard();
+  };
+
   const [internalControlDeckOpen, setInternalControlDeckOpen] = useState(true);
   
   const isControlDeckOpen = externalControlDeckOpen !== undefined ? externalControlDeckOpen : internalControlDeckOpen;
@@ -361,6 +524,66 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   }, []);
 
   const filteredBoardData: BoardData = useMemo(() => {
+    // If we have API-loaded paginated board data, reconstruct the board object!
+    if (apiBoardData && apiBoardData.columns) {
+      const columns: Record<string, ColumnType> = {};
+      const tasks: Record<string, Task> = {};
+      
+      apiBoardData.columns.forEach((col: any) => {
+        columns[col.id] = {
+          id: col.id,
+          title: col.title,
+          taskIds: [],
+        };
+      });
+      
+      const rawTasks = Array.isArray(apiBoardData.tasks) ? apiBoardData.tasks : [];
+      rawTasks.forEach((task: any) => {
+        const colId = task.columnId || task.column_id || task.currentColumnId;
+        if (colId) {
+          task.columnId = colId;
+        }
+        const originalTicketId = task.ticketId || task.ticket_id;
+        const projectCode = project ? generateProjectCode(project.name) : 'TSK';
+        let ticketId = originalTicketId;
+        if (!ticketId) {
+          const ticketTag = (task.tags || []).find((tagStr: string) => tagStr && tagStr.startsWith('ticket:'));
+          if (ticketTag) {
+            ticketId = ticketTag.split(':')[1];
+          }
+        }
+        
+        if (ticketId && projectCode === 'SLO') {
+          const numMatch = ticketId.match(/\d+/);
+          if (numMatch) {
+            const num = parseInt(numMatch[0], 10);
+            ticketId = `SLO${num.toString().padStart(5, '0')}`;
+          }
+        }
+        
+        if (ticketId) {
+          task.ticketId = ticketId;
+        } else {
+          if (projectCode === 'SLO') {
+            task.ticketId = `SLO00001`;
+          } else {
+            task.ticketId = `${projectCode}-${task.id.substring(0, 4)}`;
+          }
+        }
+        tasks[task.id] = task;
+        
+        if (colId && columns[colId]) {
+          columns[colId].taskIds.push(task.id);
+        }
+      });
+      
+      return {
+        columns,
+        tasks,
+        columnOrder: apiBoardData.columnOrder || apiBoardData.columns.map((c: any) => c.id),
+      };
+    }
+
     const defaultBoard: BoardData = { tasks: {}, columns: {}, columnOrder: [] };
     if (!boardData?.tasks || !boardData?.columns) return defaultBoard;
 
@@ -485,7 +708,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         tasks: newTasks,
         columns: newColumns
     };
-  }, [boardData, searchTerm, priorityFilter, assigneeFilter, reporterFilter, statusFilter, tagFilter, sprintFilter, startDate, endDate, relativeTimeValue, relativeTimeUnit, relativeTimeCondition, dateTarget]);
+  }, [boardData, apiBoardData, searchTerm, priorityFilter, assigneeFilter, reporterFilter, statusFilter, tagFilter, sprintFilter, startDate, endDate, relativeTimeValue, relativeTimeUnit, relativeTimeCondition, dateTarget]);
 
   const allTasks = useMemo(() => {
     return Object.values(project?.board?.tasks || {}) as Task[];
@@ -513,11 +736,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     startAutoScrollLoop();
   }, [startAutoScrollLoop]);
 
-  const handleDragEnd = useCallback((result: DropResult) => {
+  const handleDragEnd = useCallback(async (result: DropResult) => {
     isDraggingHorizontal.current = false;
     stopAutoScrollLoop();
-    onDragEnd(result, filteredBoardData);
-  }, [onDragEnd, filteredBoardData, stopAutoScrollLoop]);
+    await onDragEnd(result, filteredBoardData);
+    refreshBoard();
+  }, [onDragEnd, filteredBoardData, stopAutoScrollLoop, refreshBoard]);
   const [copiedViewId, setCopiedViewId] = useState<string | null>(null);
   
   const [tasksToConfirm, setTasksToConfirm] = useState<AiGeneratedTaskFromFile[] | null>(null);
@@ -872,7 +1096,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           </div>
         )}
 
-
         
           {projectView === 'sprints' ? (
         <SprintsPage
@@ -918,10 +1141,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                 onlineUsers={onlineUsers}
                                                 selectedTaskIds={selectedTaskIds}
                                                 onTaskClick={handleTaskSelect}
-                                                deleteTask={deleteTask}
-                                                deleteColumn={deleteColumn}
+                                                deleteTask={handleDeleteTask}
+                                                deleteColumn={handleDeleteColumn}
                                                 dragHandleProps={provided.dragHandleProps}
-                                                duplicateTask={duplicateTask}
+                                                duplicateTask={handleDuplicateTask}
                                             />
                                         </div>
                                     )}
@@ -937,18 +1160,18 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         <>
           <TaskTableView
               project={project}
-              tasks={paginatedTasksForTable}
+              tasks={apiBoardData ? filteredTasksForTable : paginatedTasksForTable}
               users={users}
-              onUpdateTask={updateTask}
-              onDragEnd={onDragEnd}
+              onUpdateTask={handleUpdateTask}
+              onDragEnd={handleDragEnd}
               onTaskClick={onTaskClick}
           />
            <Pagination
-              currentPage={tableCurrentPage}
-              totalPages={tableTotalPages}
-              onPageChange={setTableCurrentPage}
-              itemsPerPage={TABLE_ITEMS_PER_PAGE}
-              totalItems={filteredTasksForTable.length}
+              currentPage={apiBoardData ? tasksPage : tableCurrentPage}
+              totalPages={apiBoardData ? (apiBoardData.pagination?.tasks?.totalPages || 1) : tableTotalPages}
+              onPageChange={apiBoardData ? setTasksPage : setTableCurrentPage}
+              itemsPerPage={apiBoardData ? tasksLimit : TABLE_ITEMS_PER_PAGE}
+              totalItems={apiBoardData ? (apiBoardData.pagination?.tasks?.total || 0) : filteredTasksForTable.length}
           />
         </>
       ) : (
@@ -1122,6 +1345,19 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           filterSegments={project.filterSegments || []}
           addFilterSegment={addFilterSegment}
           deleteFilterSegment={deleteFilterSegment}
+
+          // Server Scope Engine parameters
+          refreshBoard={refreshBoard}
+          boardLoading={boardLoading}
+          apiBoardData={apiBoardData}
+          tasksPage={tasksPage}
+          setTasksPage={setTasksPage}
+          tasksLimit={tasksLimit}
+          setTasksLimit={setTasksLimit}
+          taskTypeFilter={taskTypeFilter}
+          setTaskTypeFilter={setTaskTypeFilter}
+          parentIdFilter={parentIdFilter}
+          setParentIdFilter={setParentIdFilter}
         />
       )}
     </>

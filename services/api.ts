@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { User, Project, NewTaskData, Task, AppState, ChatMessage, ProjectInviteLink, UserRole, Subtask, Sprint, FilterSegment, Column, TaskHistory, UserSettings } from '../types';
+import { User, Project, NewTaskData, Task, AppState, ChatMessage, ProjectInviteLink, UserRole, Subtask, Sprint, FilterSegment, Column, TaskHistory, UserSettings, GetProjectsPayload, PaginatedProjectsResponse, GetInviteLinksPayload, PaginatedInviteLinksResponse, GetColumnsPayload, PaginatedColumnsResponse, GetColumnTasksPayload, PaginatedColumnTasksResponse, GetProjectBoardPaginatedPayload, PaginatedBoardResponse } from '../types';
 import { Session, RealtimeChannel, AuthChangeEvent, User as SupabaseUser } from '@supabase/supabase-js';
 import { taskService } from './task.service';
 import client from '../api/client';
@@ -27,6 +27,15 @@ export const generateProjectCode = (name: string): string => {
     const clean = name.replace(/[^a-zA-Z0-9\s]/g, '').trim();
     const words = clean.split(/\s+/);
     if (words.length >= 2) {
+        // If 2 words, e.g. "Scope Log" -> S + LO = SLO
+        const w1 = words[0];
+        const w2 = words[1];
+        if (w1 && w2) {
+            const part1 = w1[0];
+            const part2 = w2.slice(0, 2);
+            const code = (part1 + part2).toUpperCase();
+            if (code.length === 3) return code;
+        }
         return words.map(w => w[0]).join('').toUpperCase().slice(0, 4);
     }
     return clean.substring(0, 3).toUpperCase();
@@ -605,12 +614,28 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
         
         let maxTicketNum = 0;
         sortedTasks.forEach((task: any) => {
+            const ticketIdStr = task.ticketId || task.ticket_id;
+            if (ticketIdStr) {
+                const isUuidBased = ticketIdStr.startsWith('PROJ-') || ticketIdStr.startsWith('TSK-') || (ticketIdStr.includes('-') && ticketIdStr.split('-')[1]?.length > 3 && !/^\d+$/.test(ticketIdStr.split('-')[1]));
+                if (!isUuidBased) {
+                    const numMatch = ticketIdStr.match(/\d+/);
+                    const num = numMatch ? parseInt(numMatch[0], 10) : NaN;
+                    if (!isNaN(num) && num > maxTicketNum && num < 100000) {
+                        maxTicketNum = num;
+                    }
+                }
+            }
             if (task.tags && Array.isArray(task.tags)) {
                 const ticketTag = task.tags.find((t: string) => t && t.startsWith('ticket:'));
                 if (ticketTag) {
-                    const num = parseInt(ticketTag.split(':')[1], 10);
-                    if (!isNaN(num) && num > maxTicketNum) {
-                        maxTicketNum = num;
+                    const tagVal = ticketTag.split(':')[1];
+                    const isUuidVal = tagVal.startsWith('PROJ-') || tagVal.startsWith('TSK-') || (tagVal.includes('-') && tagVal.split('-')[1]?.length > 3 && !/^\d+$/.test(tagVal.split('-')[1]));
+                    if (!isUuidVal) {
+                        const numMatch = tagVal.match(/\d+/);
+                        const num = numMatch ? parseInt(numMatch[0], 10) : parseInt(tagVal, 10);
+                        if (!isNaN(num) && num > maxTicketNum && num < 100000) {
+                            maxTicketNum = num;
+                        }
                     }
                 }
             }
@@ -635,15 +660,33 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
             task.updatedAt = task.updatedAt || task.updated_at || task.createdAt;
             task.sprintId = task.sprintId !== undefined ? task.sprintId : (task.sprint_id || null);
             task.dueDate = task.dueDate || task.due_date;
+            task.parentId = task.parentId !== undefined ? task.parentId : (task.parent_id || null);
 
+            const originalTicketId = task.ticketId || task.ticket_id;
             let ticketTag = task.tags.find((t: string) => t && t.startsWith('ticket:'));
-            let ticketNum = ticketTag ? parseInt(ticketTag.split(':')[1], 10) : NaN;
+            let ticketNum = NaN;
             let needsPersist = false;
 
-            if (isNaN(ticketNum)) {
-                if (ticketTag) {
-                    task.tags = task.tags.filter((t: string) => t !== ticketTag);
+            const isUuidBasedStr = (str: string) => {
+                if (!str) return false;
+                return str.startsWith('PROJ-') || str.startsWith('TSK-') || (str.includes('-') && str.split('-')[1]?.length > 3 && !/^\d+$/.test(str.split('-')[1]));
+            };
+
+            const cleanOriginalTicketId = originalTicketId && !isUuidBasedStr(originalTicketId) ? originalTicketId : null;
+            const cleanTicketTag = ticketTag && !isUuidBasedStr(ticketTag.split(':')[1]) ? ticketTag.split(':')[1] : null;
+
+            if (cleanOriginalTicketId) {
+                task.ticketId = cleanOriginalTicketId;
+                if (!ticketTag || ticketTag.split(':')[1] !== cleanOriginalTicketId) {
+                    if (ticketTag) {
+                        task.tags = task.tags.filter((t: string) => t !== ticketTag);
+                    }
+                    task.tags.push(`ticket:${cleanOriginalTicketId}`);
+                    needsPersist = true;
                 }
+            } else if (cleanTicketTag) {
+                task.ticketId = cleanTicketTag;
+            } else {
                 if (maxTicketNum === 0) {
                     ticketNum = index + 1;
                 } else {
@@ -653,14 +696,38 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
                 if (ticketNum > maxTicketNum) {
                     maxTicketNum = ticketNum;
                 }
-                task.tags.push(`ticket:${ticketNum}`);
+                
+                let formattedTicketId = '';
+                if (projectCode === 'SLO') {
+                    formattedTicketId = `${projectCode}${ticketNum.toString().padStart(5, '0')}`;
+                } else {
+                    formattedTicketId = `${projectCode}-${ticketNum}`;
+                }
+
+                if (ticketTag) {
+                    task.tags = task.tags.filter((t: string) => t !== ticketTag);
+                }
+                task.tags.push(`ticket:${formattedTicketId}`);
                 needsPersist = true;
+                task.ticketId = formattedTicketId;
             }
 
-            if (task.taskType === 'bug') {
-                task.ticketId = `BUG-${projectCode}-${ticketNum}`;
-            } else {
-                task.ticketId = `${projectCode}-${ticketNum}`;
+            // Force SLO formatting if project is Scope Log and we have a valid sequential ticketId but it's not padded
+            if (projectCode === 'SLO' && task.ticketId) {
+                const numMatch = task.ticketId.match(/\d+/);
+                if (numMatch) {
+                    const num = parseInt(numMatch[0], 10);
+                    const formatted = `SLO${num.toString().padStart(5, '0')}`;
+                    if (task.ticketId !== formatted) {
+                        task.ticketId = formatted;
+                        const oldTag = task.tags.find((t: string) => t && t.startsWith('ticket:'));
+                        if (oldTag) {
+                            task.tags = task.tags.filter((t: string) => t !== oldTag);
+                        }
+                        task.tags.push(`ticket:${formatted}`);
+                        needsPersist = true;
+                    }
+                }
             }
 
             // Attempt to assign ticket number asynchronously to database if generated on fly
@@ -671,7 +738,7 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
                     .eq('id', task.id)
                     .then(({ error }) => {
                         if (error) {
-                            console.error(`Failed to assign permanent ticket:${ticketNum} to task ${task.id}`, error);
+                            console.error(`Failed to assign permanent ticket tag to task ${task.id}`, error);
                         }
                     });
             }
@@ -1192,6 +1259,76 @@ const updateInviteLink = async (linkId: string, updates: any) => {
     }
 };
 
+const fetchProjectsPaginated = async (payload: GetProjectsPayload): Promise<PaginatedProjectsResponse> => {
+    try {
+        const response = await client.get(ENDPOINTS.DASHBOARD.paginatedProjects, {
+            params: payload
+        });
+        return response.data?.data || response.data;
+    } catch (e: any) {
+        console.error("Error fetching paginated projects:", e);
+        throw e;
+    }
+};
+
+const fetchInviteLinksPaginated = async (payload: GetInviteLinksPayload): Promise<PaginatedInviteLinksResponse> => {
+    try {
+        const response = await client.get(ENDPOINTS.PROJECTS.getInviteLinksPaginated, {
+            params: payload
+        });
+        return response.data?.data || response.data;
+    } catch (e: any) {
+        console.error("Error fetching paginated invite links:", e);
+        throw e;
+    }
+};
+
+const fetchColumnsPaginated = async (payload: GetColumnsPayload): Promise<PaginatedColumnsResponse> => {
+    try {
+        const response = await client.get(ENDPOINTS.PROJECTS.getColumnsPaginated(payload.projectId), {
+            params: { page: payload.page, limit: payload.limit }
+        });
+        return response.data?.data || response.data;
+    } catch (e: any) {
+        console.error("Error fetching paginated columns:", e);
+        throw e;
+    }
+};
+
+const fetchColumnTasksPaginated = async (payload: GetColumnTasksPayload): Promise<PaginatedColumnTasksResponse> => {
+    try {
+        const response = await client.get(ENDPOINTS.PROJECTS.getColumnTasksPaginated(payload.columnId), {
+            params: {
+                page: payload.page,
+                limit: payload.limit,
+                search: payload.search,
+                priority: payload.priority
+            }
+        });
+        return response.data?.data || response.data;
+    } catch (e: any) {
+        console.error("Error fetching paginated column tasks:", e);
+        throw e;
+    }
+};
+
+const fetchBoardPaginated = async (payload: GetProjectBoardPaginatedPayload): Promise<PaginatedBoardResponse> => {
+    try {
+        const response = await client.post(ENDPOINTS.PROJECTS.getBoardPaginated(payload.projectId), {
+            page: payload.page,
+            limit: payload.limit,
+            columnPage: payload.columnPage,
+            columnLimit: payload.columnLimit,
+            sort: payload.sort,
+            filters: payload.filters
+        });
+        return response.data?.data || response.data;
+    } catch (e: any) {
+        console.error("Error fetching paginated board:", e);
+        throw e;
+    }
+};
+
 const touchProject = async (projectId: string) => {
     await supabase
         .from('projects')
@@ -1260,6 +1397,11 @@ export const api = {
         getInviteLinksForProject,
         createInviteLink,
         updateInviteLink,
+        fetchProjectsPaginated,
+        fetchInviteLinksPaginated,
+        fetchColumnsPaginated,
+        fetchColumnTasksPaginated,
+        fetchBoardPaginated,
         fetchTaskHistory,
         touchProject,
         logTaskHistory

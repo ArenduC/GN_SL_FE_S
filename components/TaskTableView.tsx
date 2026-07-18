@@ -79,6 +79,11 @@ export const TaskTableView: React.FC<TaskTableViewProps> = ({ project, tasks, us
   };
 
   const getTaskColumnId = (taskId: string): string | undefined => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      const colId = task.columnId || task.currentColumnId || (task as any).column_id;
+      if (colId) return colId;
+    }
     return columns.find(c => c.taskIds.includes(taskId))?.id;
   };
 
