@@ -243,6 +243,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [apiBoardData, setApiBoardData] = useState<any | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  const updateTasksRef = useRef(updateTasksFromBoard);
+  useEffect(() => {
+    updateTasksRef.current = updateTasksFromBoard;
+  }, [updateTasksFromBoard]);
+
   const refreshBoard = useCallback(async () => {
     if (!project?.id) return;
     setBoardLoading(true);
@@ -320,8 +325,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           }
           return task;
         });
-        if (updateTasksFromBoard) {
-          updateTasksFromBoard(normalizedTasks);
+        if (updateTasksRef.current) {
+          updateTasksRef.current(normalizedTasks);
         }
       }
     } catch (err: any) {
@@ -331,7 +336,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       setBoardLoading(false);
     }
   }, [
-    project,
+    project?.id,
+    project?.name,
     tasksPage,
     tasksLimit,
     columnPage,
@@ -352,7 +358,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     relativeTimeUnit,
     relativeTimeCondition,
     dateTarget,
-    updateTasksFromBoard,
   ]);
 
   useEffect(() => {

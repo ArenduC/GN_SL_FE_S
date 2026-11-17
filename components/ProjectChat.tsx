@@ -66,8 +66,21 @@ const ChatBubble: React.FC<{
         setTimeout(() => setCopied(false), 2500);
     };
 
-    const lines = message.text.split('\n');
-    const hasMoreThan15Lines = lines.length > 15;
+    const wordMatches = useMemo(() => {
+        if (!message.text) return [];
+        return [...message.text.matchAll(/\S+/g)];
+    }, [message.text]);
+
+    const hasMoreThan100Words = wordMatches.length > 100;
+
+    const displayedText = useMemo(() => {
+        if (isExpanded || !hasMoreThan100Words) {
+            return message.text;
+        }
+        const hundredthWord = wordMatches[99];
+        const cutoffIndex = hundredthWord.index + hundredthWord[0].length;
+        return message.text.substring(0, cutoffIndex) + ' ...';
+    }, [message.text, isExpanded, hasMoreThan100Words, wordMatches]);
 
     const renderTextWithTags = (text: string) => {
         if (!text) return '';
@@ -116,79 +129,87 @@ const ChatBubble: React.FC<{
     };
 
     return (
-        <div className={`group flex items-start gap-3.5 py-3.5 px-4 sm:px-6 hover:bg-white/[0.015] border-b border-white/[0.03] transition-colors relative w-full ${isCurrentUser ? 'flex-row-reverse text-right' : 'text-left'}`}>
-            <UserAvatar user={message.author} className="w-8 h-8 rounded-lg flex-shrink-0 text-xs text-white" isOnline={isOnline} />
+        <div className={`group/msg flex items-end gap-2.5 px-4 sm:px-6 py-1.5 transition-colors relative w-full ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+            {/* Show avatar for incoming messages */}
+            {!isCurrentUser && (
+                <UserAvatar user={message.author} className="w-7 h-7 rounded-full flex-shrink-0 text-xs text-white mb-1 shadow-sm" isOnline={isOnline} />
+            )}
             
-            <div className="flex-grow min-w-0">
-                {/* Header Row */}
-                <div className={`flex items-center gap-2 ${isCurrentUser ? 'justify-end' : ''}`}>
-                    {isCurrentUser ? (
-                        <>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                                {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                            <span className="text-[8px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 px-1 py-0.5 rounded-md shrink-0">
-                                You
-                            </span>
-                            <span className="font-bold text-xs text-white truncate">
-                                {message.author?.name || 'Collaborator'}
-                            </span>
-                        </>
-                    ) : (
-                        <>
-                            <span className="font-bold text-xs text-white truncate">
-                                {message.author?.name || 'Collaborator'}
-                            </span>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                                {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                        </>
-                    )}
+            {/* WhatsApp Speech Bubble */}
+            <div className={`relative max-w-[85%] sm:max-w-[72%] p-3 shadow-md text-left transition-all ${
+                isCurrentUser 
+                    ? 'bg-[#005c4b] border border-emerald-500/20 text-white rounded-2xl rounded-tr-xs' 
+                    : 'bg-[#202c33] border border-white/10 text-white rounded-2xl rounded-tl-xs'
+            }`}>
+                {/* Author Name */}
+                <div className="flex items-center justify-between gap-3 mb-1">
+                    <span className={`text-[11px] font-bold tracking-tight truncate ${
+                        isCurrentUser ? 'text-emerald-300' : 'text-amber-400'
+                    }`}>
+                        {isCurrentUser ? 'You' : (message.author?.name || 'Collaborator')}
+                    </span>
                 </div>
 
-                {/* Message Text Block */}
-                <div className={`mt-1 text-xs text-gray-300 leading-relaxed max-w-full overflow-hidden ${isCurrentUser ? 'text-right' : 'text-left'}`}>
+                {/* Message Content */}
+                <div className="text-xs sm:text-sm text-gray-100 leading-relaxed break-words">
                     {isJson ? (
-                        <div className={`mt-1.5 w-full ${isCurrentUser ? 'text-left flex justify-end' : ''}`}>
-                            <div className="max-w-full">
-                                <JsonSyntaxHighlighter data={message.text} />
-                            </div>
+                        <div className="mt-1 w-full overflow-x-auto">
+                            <JsonSyntaxHighlighter data={message.text} />
                         </div>
                     ) : (
                         <div>
-                            <p className="whitespace-pre-wrap break-words">
-                                {renderTextWithTags(
-                                    isExpanded || !hasMoreThan15Lines
-                                        ? message.text
-                                        : lines.slice(0, 15).join('\n') + ' ...'
-                                )}
+                            <p className="whitespace-pre-wrap break-words text-left">
+                                {renderTextWithTags(displayedText)}
                             </p>
-                            {hasMoreThan15Lines && (
+                            {hasMoreThan100Words && (
                                 <button
                                     onClick={() => setIsExpanded(!isExpanded)}
-                                    className="mt-1 text-[10px] font-black uppercase tracking-wider block text-emerald-400 hover:text-emerald-300 transition-colors hover:underline cursor-pointer"
+                                    className={`mt-1.5 text-[10px] font-black uppercase tracking-wider block transition-colors hover:underline cursor-pointer select-none text-left ${
+                                        isCurrentUser ? 'text-emerald-200 hover:text-white' : 'text-emerald-400 hover:text-emerald-300'
+                                    }`}
                                     type="button"
                                 >
-                                    {isExpanded ? 'Show Less' : 'Read More'}
+                                    {isExpanded ? 'Read Less' : 'Read More'}
                                 </button>
                             )}
                         </div>
                     )}
                 </div>
+
+                {/* WhatsApp Timestamp & Read Status */}
+                <div className={`flex items-center justify-end gap-1 mt-1 text-[9px] sm:text-[10px] font-mono select-none ${
+                    isCurrentUser ? 'text-emerald-200/70' : 'text-gray-400'
+                }`}>
+                    <span>
+                        {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                    {isCurrentUser && (
+                        <span className="text-sky-300 font-black text-xs leading-none ml-0.5" title="Delivered">
+                            ✓✓
+                        </span>
+                    )}
+                </div>
+
+                {/* Hover Copy Action */}
+                {!isJson && (
+                    <div className={`absolute top-2 opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center bg-[#111b21] border border-white/10 rounded-lg p-0.5 shadow-xl z-20 ${
+                        isCurrentUser ? '-left-8' : '-right-8'
+                    }`}>
+                        <button 
+                            onClick={handleCopy} 
+                            className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer" 
+                            title="Copy text"
+                            type="button"
+                        >
+                            {copied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-400" /> : <CopyIcon className="w-3.5 h-3.5" />}
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Hover Floating Copy Option */}
-            {!isJson && (
-                <div className={`absolute top-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-[#0D1112] border border-white/10 rounded-lg p-0.5 shadow-xl z-20 ${isCurrentUser ? 'left-4' : 'right-4'}`}>
-                    <button 
-                        onClick={handleCopy} 
-                        className="p-1.5 rounded hover:bg-white/5 text-gray-400 hover:text-white transition-colors cursor-pointer" 
-                        title="Copy text"
-                        type="button"
-                    >
-                        {copied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-405" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                    </button>
-                </div>
+            {/* Show avatar for current user on the right side if desired */}
+            {isCurrentUser && (
+                <UserAvatar user={message.author} className="w-7 h-7 rounded-full flex-shrink-0 text-xs text-white mb-1 shadow-sm" isOnline={isOnline} />
             )}
         </div>
     );
@@ -227,6 +248,31 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     const activeProjectObj = useMemo(() => {
         return (projects || []).find(p => p.id === activeChatProjectId) || project;
     }, [projects, activeChatProjectId, project]);
+
+    const sortedProjects = useMemo(() => {
+        return [...(projects || [])].sort((a, b) => {
+            const isAActive = a.id === activeChatProjectId;
+            const isBActive = b.id === activeChatProjectId;
+
+            if (isAActive && !isBActive) return -1;
+            if (!isAActive && isBActive) return 1;
+
+            const getLatestMsgTime = (p: Project) => {
+                if (!p.chatMessages || p.chatMessages.length === 0) return 0;
+                const lastMsg = p.chatMessages[p.chatMessages.length - 1];
+                return lastMsg && lastMsg.createdAt ? new Date(lastMsg.createdAt).getTime() : 0;
+            };
+
+            const aTime = getLatestMsgTime(a);
+            const bTime = getLatestMsgTime(b);
+
+            if (aTime !== bTime) {
+                return bTime - aTime;
+            }
+
+            return a.name.localeCompare(b.name);
+        });
+    }, [projects, activeChatProjectId]);
 
     const messagesToShow = useMemo(() => {
         return activeProjectObj.chatMessages || [];
@@ -354,7 +400,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                     </div>
                     
                     <div className="flex-grow overflow-y-auto custom-scrollbar p-2 space-y-1.5 bg-[#090D0E]/30">
-                        {(projects || []).map((proj) => {
+                        {sortedProjects.map((proj) => {
                             const isActive = proj.id === activeChatProjectId;
                             return (
                                 <button
@@ -374,7 +420,14 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                         {proj.name.slice(0, 2).toUpperCase()}
                                     </div>
                                     <div className="min-w-0 flex-grow hidden md:block text-left">
-                                        <h4 className="text-xs font-bold truncate">{proj.name}</h4>
+                                        <div className="flex items-center justify-between gap-1">
+                                            <h4 className="text-xs font-bold truncate">{proj.name}</h4>
+                                            {isActive && (
+                                                <span className="text-[8px] font-black uppercase tracking-wider bg-sky-500/20 text-sky-400 px-1 py-0.5 rounded shrink-0">
+                                                    Active
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="text-[9px] text-gray-500 truncate mt-0.5">
                                             {proj.members?.length || 0} members · {proj.chatMessages?.length || 0} msgs
                                         </p>
@@ -391,25 +444,26 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                 </div>
 
                 {/* Right Container: Active Chat View */}
-                <div className="flex-grow h-full flex flex-col overflow-hidden relative">
+                <div className="flex-grow h-full flex flex-col overflow-hidden relative bg-[#0b141a]">
                     
-                    {/* Header matching minimal clean SaaS designs */}
-                    <header className="h-16 flex-shrink-0 border-b border-white/5 bg-[#0E1314]/80 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-30">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
+                    {/* WhatsApp Style Header */}
+                    <header className="h-16 flex-shrink-0 border-b border-white/10 bg-[#202c33] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-md">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-[#00a884]/20 border border-[#00a884]/30 text-[#00a884] flex items-center justify-center shrink-0">
                                 <MessageSquareIcon className="w-5 h-5" />
                             </div>
                             <div className="min-w-0">
-                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white truncate">Project Pipeline Chat</h3>
-                                <p className="text-[10px] text-gray-500 font-medium truncate">
-                                    Connected to <span className="text-gray-300 font-bold">{activeProjectObj.name}</span> context
+                                <h3 className="text-xs sm:text-sm font-bold text-white truncate">{activeProjectObj.name}</h3>
+                                <p className="text-[10px] text-emerald-400 font-medium truncate flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                                    <span>{activeProjectObj.members?.length || 0} members · active context</span>
                                 </p>
                             </div>
                         </div>
                         
                         <button 
                             onClick={onClose} 
-                            className="p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer block"
+                            className="p-2 rounded-full border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer block"
                             title="Close Chat"
                             type="button"
                         >
@@ -418,15 +472,15 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                     </header>
 
                     {/* Message display listing viewport */}
-                    <div ref={scrollContainerRef} className="flex-grow overflow-y-auto custom-scrollbar flex flex-col pt-2 pb-6">
+                    <div ref={scrollContainerRef} className="flex-grow overflow-y-auto custom-scrollbar flex flex-col pt-3 pb-6 bg-[#0b141a]">
                         {messagesToShow.length === 0 ? (
                             <div className="flex-grow flex flex-col items-center justify-center py-20 px-6 text-center">
-                                <div className="w-10 h-10 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-gray-500 mb-4">
-                                    <MessageSquareIcon className="w-5 h-5" />
+                                <div className="w-12 h-12 rounded-full bg-[#202c33] border border-white/10 flex items-center justify-center text-emerald-400 mb-4 shadow-lg">
+                                    <MessageSquareIcon className="w-6 h-6" />
                                 </div>
-                                <h4 className="text-xs font-bold text-gray-350 uppercase tracking-widest">No Context Signals</h4>
-                                <p className="text-[11px] text-gray-500 max-w-sm mt-1 leading-relaxed">
-                                    Share design blueprints, JSON updates, file codes, or mention members to stream information.
+                                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-widest">No Messages Yet</h4>
+                                <p className="text-[11px] text-gray-400 max-w-sm mt-1 leading-relaxed">
+                                    Start a conversation, share updates, paste code or JSON, or mention team members.
                                 </p>
                             </div>
                         ) : (
@@ -438,8 +492,8 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                 return (
                                     <React.Fragment key={msg.id}>
                                         {showDate && (
-                                            <div className="flex justify-center my-6 sticky top-2 z-10 pointer-events-none">
-                                                <span className="bg-[#141B1C]/90 backdrop-blur-md border border-white/5 text-gray-400 text-[9px] px-3 py-1 rounded-full font-black tracking-widest uppercase shadow-md">
+                                            <div className="flex justify-center my-4 sticky top-2 z-10 pointer-events-none">
+                                                <span className="bg-[#182229] border border-white/10 text-gray-300 text-[10px] font-semibold px-3 py-1 rounded-md shadow-md">
                                                     {formatDateSeparator(msg.createdAt)}
                                                 </span>
                                             </div>
@@ -457,10 +511,10 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                         <div ref={messagesEndRef} className="h-px w-full shrink-0" />
                     </div>
 
-                    {/* Footer Message Input Section */}
-                    <footer className="p-4 sm:p-6 border-t border-white/5 bg-[#0E1314] flex-shrink-0 relative">
+                    {/* WhatsApp Style Footer Message Input Section */}
+                    <footer className="p-3 sm:p-4 border-t border-white/10 bg-[#202c33] flex-shrink-0 relative">
                         {suggestionState.show && filteredSuggestions.length > 0 && (
-                            <div className="absolute bottom-full left-4 sm:left-6 right-4 sm:right-6 mb-2 bg-[#141B1C] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar z-50 overflow-hidden">
+                            <div className="absolute bottom-full left-4 sm:left-6 right-4 sm:right-6 mb-2 bg-[#182229] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar z-50 overflow-hidden">
                                 <ul>
                                     {filteredSuggestions.map((item, index) => (
                                         <li 
@@ -468,14 +522,14 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                             onClick={() => handleSuggestionSelect(item)} 
                                             onMouseEnter={() => setActiveIndex(index)}
                                             className={`px-3.5 py-2.5 cursor-pointer flex items-center justify-between transition-colors ${
-                                                index === activeIndex ? 'bg-white/5 text-sky-400' : 'text-gray-300'
+                                                index === activeIndex ? 'bg-white/10 text-emerald-400' : 'text-gray-300'
                                             }`}
                                         >
                                             <div className="flex items-center gap-2.5 min-w-0">
                                                 <UserAvatar user={item} className="w-5 h-5 flex-shrink-0 text-[10px]" />
                                                 <span className="text-xs truncate font-bold">{item.name}</span>
                                             </div>
-                                            <span className="text-[10px] text-gray-500 font-mono">@{item.name.toLowerCase().replace(/\s+/g, '')}</span>
+                                            <span className="text-[10px] text-gray-400 font-mono">@{item.name.toLowerCase().replace(/\s+/g, '')}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -484,15 +538,15 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
 
                         <form 
                             onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
-                            className="flex items-end gap-2.5 bg-[#0D1112] border border-white/10 rounded-2xl p-2 focus-within:border-sky-500/40 transition-colors"
+                            className="flex items-center gap-2.5 bg-[#2a3942] border border-white/10 rounded-2xl p-1.5 sm:p-2 focus-within:border-emerald-500/50 transition-colors shadow-inner"
                         >
                             <textarea
                                 ref={textareaRef}
                                 value={newMessage}
                                 onChange={handleNewMessageChange}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Message team, paste JSON, write details..."
-                                className="w-full bg-transparent px-3 text-xs text-white placeholder-gray-500 focus:outline-none resize-none py-1.5 custom-scrollbar"
+                                placeholder="Type a message..."
+                                className="w-full bg-transparent px-3 text-xs sm:text-sm text-white placeholder-gray-400 focus:outline-none resize-none py-1.5 custom-scrollbar"
                                 rows={1}
                                 style={{ height: 'auto', maxHeight: '120px' }}
                                 onInput={(e) => {
@@ -505,7 +559,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                             <button 
                                 type="submit" 
                                 disabled={!newMessage.trim()}
-                                className="p-2.5 bg-white disabled:bg-white/10 hover:bg-gray-200 text-black disabled:text-gray-600 rounded-xl transition-all flex-shrink-0 flex items-center justify-center cursor-pointer"
+                                className="p-2.5 bg-[#00a884] hover:bg-[#028a6e] disabled:bg-[#202c33] text-black disabled:text-gray-500 rounded-full transition-all flex-shrink-0 flex items-center justify-center cursor-pointer shadow-md"
                                 aria-label="Send message"
                             >
                                 <SendIcon className="w-4 h-4"/>
