@@ -1,7 +1,63 @@
 import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const KILL_SWITCH_SW = `
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+    } catch {}
+    try {
+      await self.registration.unregister();
+    } catch {}
+    try {
+      const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windowClients) {
+        client.navigate(client.url);
+      }
+    } catch {}
+  })());
+});
+`.trim();
+
+function devSwCleanupPlugin(): Plugin {
+  return {
+    name: 'dev-sw-cleanup',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = (req.url || '').split('?')[0];
+        if (pathname === '/dev-dist/sw.js' || pathname === '/sw.js') {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.end(KILL_SWITCH_SW);
+          return;
+        }
+        next();
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = (req.url || '').split('?')[0];
+        if (pathname === '/dev-dist/sw.js') {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.end(KILL_SWITCH_SW);
+          return;
+        }
+        next();
+      });
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
@@ -16,6 +72,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      devSwCleanupPlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         manifest: false,
