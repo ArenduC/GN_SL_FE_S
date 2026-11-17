@@ -1,11 +1,4 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
-
-interface RetryableRequestConfig extends InternalAxiosRequestConfig {
-    _retryCount?: number;
-    silent?: boolean;
-}
-
-const MAX_TRANSIENT_RETRIES = 2;
+import { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 
 export const setupInterceptors = (axiosInstance: AxiosInstance): AxiosInstance => {
     // Request Interceptor
@@ -16,22 +9,22 @@ export const setupInterceptors = (axiosInstance: AxiosInstance): AxiosInstance =
             const isValidToken = token && token !== 'undefined' && token !== 'null' && token.trim().length > 0;
             if (isValidToken && config.headers) {
                 const bearerToken = `Bearer ${token}`;
+                config.headers.Authorization = bearerToken;
+                config.headers['Authorization'] = bearerToken;
+                config.headers['authorization'] = bearerToken;
+                
+                // For modern Axios (AxiosHeaders class)
                 if (typeof config.headers.set === 'function') {
                     config.headers.set('Authorization', bearerToken);
-                } else {
-                    config.headers.Authorization = bearerToken;
+                    config.headers.set('authorization', bearerToken);
                 }
             }
 
-            // Automatically append ngrok-skip-browser-warning bypass only for ngrok endpoints
+            // Automatically append ngrok-skip-browser-warning bypass to both headers and query params
             const isNgrok = config.url?.includes('ngrok-free.dev') || config.baseURL?.includes('ngrok-free.dev');
             if (isNgrok) {
                 if (config.headers) {
-                    if (typeof config.headers.set === 'function') {
-                        config.headers.set('ngrok-skip-browser-warning', 'true');
-                    } else {
-                        config.headers['ngrok-skip-browser-warning'] = 'true';
-                    }
+                    config.headers['ngrok-skip-browser-warning'] = 'true';
                 }
                 config.params = {
                     ...config.params,
@@ -41,7 +34,7 @@ export const setupInterceptors = (axiosInstance: AxiosInstance): AxiosInstance =
             return config;
         },
         (error) => {
-            console.warn('[API Request Error]:', error?.message || error);
+            console.error('[API Request Error]:', error);
             return Promise.reject(error);
         }
     );
@@ -51,43 +44,24 @@ export const setupInterceptors = (axiosInstance: AxiosInstance): AxiosInstance =
         (response: AxiosResponse) => {
             return response;
         },
-        async (error) => {
-            if (axios.isCancel(error) || error?.code === 'ERR_CANCELED') {
-                return Promise.reject(error);
-            }
-
-            const config = error.config as RetryableRequestConfig | undefined;
+        (error) => {
+            // Standardize and log global response errors
             const status = error.response ? error.response.status : null;
             const data = error.response ? error.response.data : null;
-
-            const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
-            const isTransientNetworkError =
-                isOnline &&
-                config &&
-                (!error.response || status === 502 || status === 503 || status === 504) &&
-                (config._retryCount || 0) < MAX_TRANSIENT_RETRIES;
-
-            if (isTransientNetworkError && config) {
-                config._retryCount = (config._retryCount || 0) + 1;
-                const delayMs = config._retryCount * 600;
-                await new Promise((resolve) => setTimeout(resolve, delayMs));
-                return axiosInstance(config);
-            }
-
+            const config = error.config;
             const isSilent = config?.silent || (status === 404 && config?.url?.includes('/profile'));
-
+            
             if (!isSilent) {
-                if (status === null) {
-                    console.warn(`[API Network Warning] Request unreachable (${config?.url || 'unknown'}):`, error.message);
-                } else {
-                    console.error(`[API Response Error] Status: ${status}`, data || error.message);
-                }
+                console.error(`[API Response Error] Status: ${status}`, data || error.message);
+            } else {
+                console.log(`[API Response Info] Status: ${status} (Silent request or expected 404 profile status)`);
             }
-
+            
             if (status === 401) {
                 console.warn('Unauthorized or Session expired.');
+                // Handle unauthorized transitions or session cleanups here
             }
-
+            
             return Promise.reject(error);
         }
     );
