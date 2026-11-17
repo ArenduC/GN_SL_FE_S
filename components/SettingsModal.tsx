@@ -6,6 +6,7 @@ import { useConfirmation } from '../App';
 import { validateGeminiKey } from '../services/geminiService';
 import { api } from '../services/api';
 import { UserAvatar } from './UserAvatar';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -389,6 +390,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           }} 
                         />
                       </div>
+                    </div>
+
+                    {/* Desktop Web App Install (Windows & Linux) */}
+                    <div className="h-px bg-gray-700/50 my-4" />
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider text-[10px]">
+                        Desktop Web App (Windows &amp; Linux)
+                      </h4>
+                      <PWAInstallButton variant="settings" />
                     </div>
 
                     {/* Notifications settings section */}

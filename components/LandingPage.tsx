@@ -3,6 +3,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AppLogo, BotMessageSquareIcon, SparklesIcon, UsersIcon, LayoutDashboardIcon, ArrowLeftIcon, RocketIcon, ZapIcon, ShieldCheckIcon, ChevronRightIcon, CheckSquareIcon, TrendingUpIcon } from './Icons';
 import { LoginPage } from '../pages/LoginPage';
 import { InfoHubModal } from './InfoHubModal';
+import { PWAInstallButton } from './PWAInstallButton';
+import { OfflineIndicator } from './OfflineIndicator';
 
 const ParallaxBackground: React.FC = () => {
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -106,13 +108,14 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
                     <AppLogo className="w-10 h-10" theme="dark" />
                     <span className="text-xl font-bold tracking-tighter text-white">SCOPE LOG</span>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                     <button 
                         onClick={() => openInfo('guide')}
                         className="hidden md:block text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors"
                     >
                         How it works
                     </button>
+                    <PWAInstallButton variant="landing" />
                     <button 
                         onClick={scrollToLogin}
                         className="px-5 py-2 text-sm font-semibold bg-white text-black rounded-full hover:bg-gray-200 transition-all shadow-xl shadow-white/5"
@@ -311,6 +314,7 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
                 onClose={() => setInfoHubOpen(false)} 
                 initialTab={infoHubTab} 
             />
+            <OfflineIndicator />
         </div>
     );
 };

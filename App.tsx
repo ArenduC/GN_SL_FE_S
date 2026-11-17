@@ -24,6 +24,8 @@ import { FeedbackModal } from './components/FeedbackModal';
 import { InfoHubModal } from './components/InfoHubModal';
 import { NotificationToast } from './components/NotificationToast';
 import { UserAvatar } from './components/UserAvatar';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { AppLogo, SearchIcon, BotMessageSquareIcon, LogOutIcon, SettingsIcon, MessageSquareIcon, RotateCwIcon, ArrowLeftIcon, HelpCircleIcon, CheckSquareIcon, PlusIcon, UsersIcon, BellIcon, LayoutDashboardIcon, TableIcon, GitBranchIcon, RocketIcon, ExternalLinkIcon } from './components/Icons';
 import { Session } from '@supabase/supabase-js';
 import { interpretVoiceCommand } from './services/geminiService';
@@ -976,6 +978,10 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                   )}
                 </button>
 
+                <div className="pt-2">
+                  <PWAInstallButton variant="sidebar" isCollapsed={isSidebarCollapsed} />
+                </div>
+
               </div>
 
               {/* Sidebar Footer with current session user detail */}
@@ -1158,6 +1164,9 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                       </div>
                     )}
                   </div>
+
+                  {/* Install Desktop Web App (Windows / Linux) */}
+                  <PWAInstallButton variant="header" />
 
                   {/* Help Info Hub */}
                   <button onClick={() => setIsInfoHubOpen(true)} className="p-2 text-gray-500 hover:text-white transition-colors">
@@ -1512,6 +1521,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
           }} 
           />
         <InfoHubModal isOpen={isInfoHubOpen} onClose={() => setIsInfoHubOpen(false)} />
+        <OfflineIndicator />
 
         {/* Floating Mock Billing subscription slider panel */}
         {isBillingOpen && (
