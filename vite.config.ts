@@ -4,96 +4,83 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
-    return {
-      server: {
-        port: 3000,
-        host: '0.0.0.0',
-      },
-      plugins: [
-        react(),
-        VitePWA({
-          registerType: 'autoUpdate',
-          includeAssets: ['apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
-          manifest: {
-            id: '/',
-            name: 'SCOPE LOG',
-            short_name: 'SCOPE LOG',
-            description: 'Project management board for task orchestration, sprints, and real-time team collaboration.',
-            theme_color: '#0E1314',
-            background_color: '#0E1314',
-            display: 'standalone',
-            start_url: '/',
-            scope: '/',
-            icons: [
-              {
-                src: '/pwa-192x192.png',
-                sizes: '192x192',
-                type: 'image/png',
-                purpose: 'any',
-              },
-              {
-                src: '/pwa-512x512.png',
-                sizes: '512x512',
-                type: 'image/png',
-                purpose: 'any',
-              },
-              {
-                src: '/pwa-maskable-512x512.png',
-                sizes: '512x512',
-                type: 'image/png',
-                purpose: 'maskable',
-              },
-            ],
-          },
-          workbox: {
-            maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-            globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-            runtimeCaching: [
-              {
-                urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-                handler: 'CacheFirst',
-                options: {
-                  cacheName: 'google-fonts-cache',
-                  expiration: {
-                    maxEntries: 10,
-                    maxAgeSeconds: 60 * 60 * 24 * 365,
-                  },
-                  cacheableResponse: {
-                    statuses: [0, 200],
-                  },
+  const env = loadEnv(mode, '.', '');
+  return {
+    server: {
+      port: 3000,
+      host: '0.0.0.0',
+    },
+    preview: {
+      port: 3000,
+      host: '0.0.0.0',
+    },
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        manifest: false,
+        includeAssets: [
+          'apple-touch-icon.png',
+          'pwa-192x192.png',
+          'pwa-512x512.png',
+          'pwa-maskable-512x512.png',
+          'manifest.webmanifest',
+        ],
+        workbox: {
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webmanifest}'],
+          navigateFallbackDenylist: [
+            /^\/api/,
+            /^\/@/,
+            /\.(?:css|js|mjs|json|png|jpg|jpeg|svg|ico|webp|woff2?|webmanifest)$/,
+          ],
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
                 },
               },
-              {
-                urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-                handler: 'CacheFirst',
-                options: {
-                  cacheName: 'gstatic-fonts-cache',
-                  expiration: {
-                    maxEntries: 10,
-                    maxAgeSeconds: 60 * 60 * 24 * 365,
-                  },
-                  cacheableResponse: {
-                    statuses: [0, 200],
-                  },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'gstatic-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
                 },
               },
-            ],
-          },
-          devOptions: {
-            enabled: true,
-            type: 'module',
-          },
-        }),
-      ],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+            },
+          ],
+        },
+        devOptions: {
+          enabled: false,
+        },
+      }),
+    ],
+    define: {
+      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+    },
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
       },
-      resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-        }
-      }
-    };
+    },
+  };
 });

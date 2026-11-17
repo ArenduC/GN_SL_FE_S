@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: 'Ubuntu', sans-serif;
+  background-color: #1C2326;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+select option {
+  background: #131C1B;
+  color: white;
+}
+
+/* Beautiful, prominent tables inside RichText (ql-editor) */
+.ql-editor table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: 16px 0 !important;
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+.ql-editor th {
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+  padding: 10px 14px !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+}
+
+.ql-editor td {
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  padding: 10px 14px !important;
+  color: #e5e7eb !important;
+}
+
+.ql-editor tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
