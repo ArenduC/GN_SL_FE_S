@@ -1108,17 +1108,17 @@ export const useAppState = (
     await fetchData();
   }, [fetchData]);
 
-  const updateFilterSegment = async (segmentId: string, updates: { name?: string, filters?: FilterSegment['filters'] }) => {
+  const updateFilterSegment = useCallback(async (segmentId: string, updates: { name?: string, filters?: FilterSegment['filters'] }) => {
     // FIX: Cast Object.values to Project[] to avoid unknown type errors when searching for the project containing the filter segment.
-    const projectEntry = (Object.values(state.projects || {}) as Project[]).find(p => p.filterSegments.some(s => s.id === segmentId));
+    const projectEntry = (Object.values(state.projects || {}) as Project[]).find(p => (p.filterSegments || []).some(s => s.id === segmentId));
     if (projectEntry) optimisticTouch(projectEntry.id);
     await api.data.updateFilterSegment(segmentId, updates);
     await fetchData();
-  };
+  }, [fetchData, state.projects]);
 
   const deleteFilterSegment = useCallback(async (segmentId: string) => {
     // FIX: Cast Object.values to Project[] to avoid unknown type errors when searching for the project containing the filter segment.
-    const projectEntry = (Object.values(state.projects || {}) as Project[]).find(p => p.filterSegments.some(s => s.id === segmentId));
+    const projectEntry = (Object.values(state.projects || {}) as Project[]).find(p => (p.filterSegments || []).some(s => s.id === segmentId));
     if (projectEntry) optimisticTouch(projectEntry.id);
     await api.data.deleteFilterSegment(segmentId);
     await fetchData();

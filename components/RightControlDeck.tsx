@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Bookmark, Trash2, Server, RefreshCw, FileText, Bug, FolderTree, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Bookmark, Trash2, Server, RefreshCw, FileText, Bug, FolderTree, ChevronLeft, ChevronRight, Pencil, RotateCcw } from 'lucide-react';
 import { 
   SearchIcon, 
   XIcon, 
@@ -15,6 +15,8 @@ import {
 } from './Icons';
 import { User, Sprint, TaskPriority, FilterSegment } from '../types';
 
+export const WORKSPACE_FILTER_SEGMENT_NAME = 'WORKSPACE_FILTERS';
+
 interface SavedFilterItem {
   id: string;
   name: string;
@@ -26,6 +28,13 @@ interface SavedFilterItem {
   startDate: string;
   endDate: string;
 }
+
+const arraysEqual = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((val, idx) => val === sortedB[idx]);
+};
 
 interface RightControlDeckProps {
   // Search
@@ -78,7 +87,11 @@ interface RightControlDeckProps {
   projectColumnsList?: { id: string, name: string, taskIds: string[] }[];
   filterSegments?: FilterSegment[];
   addFilterSegment?: (name: string, filters: FilterSegment['filters']) => Promise<void>;
+  updateFilterSegment?: (segmentId: string, updates: { name?: string; filters?: FilterSegment['filters'] }) => Promise<void>;
   deleteFilterSegment?: (segmentId: string) => Promise<void>;
+  activeSegmentId?: string | null;
+  onApplySegment?: (segmentId: string | null) => void;
+  onWorkspaceFiltersApplied?: () => void;
 
   // Server Scope Engine props
   refreshBoard?: () => void;
@@ -132,7 +145,11 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   projectColumnsList = [],
   filterSegments,
   addFilterSegment,
+  updateFilterSegment,
   deleteFilterSegment,
+  activeSegmentId,
+  onApplySegment,
+  onWorkspaceFiltersApplied,
 
   // Server Scope Engine props
   refreshBoard,
@@ -151,11 +168,29 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   const [activeTab, setActiveTab] = useState<'filters' | 'actions' | 'analytics' | 'saved' | 'scope'>(refreshBoard ? 'scope' : 'filters');
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [newFilterName, setNewFilterName] = useState('');
+
+  // Draft workspace filter state (committed via the Apply button)
+  const [draftSearchTerm, setDraftSearchTerm] = useState(searchTerm);
+  const [draftPriorityFilter, setDraftPriorityFilter] = useState<string[]>(priorityFilter);
+  const [draftAssigneeFilter, setDraftAssigneeFilter] = useState<string[]>(assigneeFilter);
+  const [draftStatusFilter, setDraftStatusFilter] = useState<string[]>(statusFilter);
+  const [draftTagFilter, setDraftTagFilter] = useState<string[]>(tagFilter);
+  const [draftStartDate, setDraftStartDate] = useState(startDate);
+  const [draftEndDate, setDraftEndDate] = useState(endDate);
+
+  // Loading & inline-edit UI states for FILTERS API calls
+  const [isApplyingWorkspaceFilters, setIsApplyingWorkspaceFilters] = useState(false);
+  const [isSavingFilter, setIsSavingFilter] = useState(false);
+  const [busySegmentId, setBusySegmentId] = useState<string | null>(null);
+  const [updatedSegmentId, setUpdatedSegmentId] = useState<string | null>(null);
+  const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
+  const [editingSegmentName, setEditingSegmentName] = useState('');
+
   const [savedFilters, setSavedFilters] = useState<SavedFilterItem[]>(() => {
     try {
       const raw = localStorage.getItem('saved_filters_v1');
       return raw ? JSON.parse(raw) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -164,26 +199,146 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     localStorage.setItem('saved_filters_v1', JSON.stringify(savedFilters));
   }, [savedFilters]);
 
-  // Handler to save the active configuration as a new filter item
+  // Keep draft filters synchronized whenever committed parent filter state changes
+  // (e.g. initial load, applying a saved filter preset, or resetting filters)
+  useEffect(() => {
+    setDraftSearchTerm(searchTerm);
+    setDraftPriorityFilter(priorityFilter);
+    setDraftAssigneeFilter(assigneeFilter);
+    setDraftStatusFilter(statusFilter);
+    setDraftTagFilter(tagFilter);
+    setDraftStartDate(startDate);
+    setDraftEndDate(endDate);
+  }, [searchTerm, priorityFilter, assigneeFilter, statusFilter, tagFilter, startDate, endDate]);
+
+  const workspaceSegment = useMemo(
+    () => (filterSegments || []).find(s => s.name === WORKSPACE_FILTER_SEGMENT_NAME),
+    [filterSegments]
+  );
+
+  const userSavedSegments = useMemo(
+    () => (filterSegments || []).filter(s => s.name !== WORKSPACE_FILTER_SEGMENT_NAME),
+    [filterSegments]
+  );
+
+  const hasUnappliedChanges = useMemo(() => {
+    return (
+      draftSearchTerm !== searchTerm ||
+      !arraysEqual(draftPriorityFilter, priorityFilter) ||
+      !arraysEqual(draftAssigneeFilter, assigneeFilter) ||
+      !arraysEqual(draftStatusFilter, statusFilter) ||
+      !arraysEqual(draftTagFilter, tagFilter) ||
+      draftStartDate !== startDate ||
+      draftEndDate !== endDate
+    );
+  }, [
+    draftSearchTerm, searchTerm,
+    draftPriorityFilter, priorityFilter,
+    draftAssigneeFilter, assigneeFilter,
+    draftStatusFilter, statusFilter,
+    draftTagFilter, tagFilter,
+    draftStartDate, startDate,
+    draftEndDate, endDate
+  ]);
+
+  // Apply draft workspace filters and persist via FILTERS API (add / update / delete)
+  const handleApplyWorkspaceFilters = async () => {
+    const nextFilters: FilterSegment['filters'] = {
+      searchTerm: draftSearchTerm,
+      priorityFilter: [...draftPriorityFilter],
+      assigneeFilter: [...draftAssigneeFilter],
+      statusFilter: [...draftStatusFilter],
+      tagFilter: [...draftTagFilter],
+      startDate: draftStartDate,
+      endDate: draftEndDate,
+      sprintFilter: []
+    };
+
+    const hasAnyFilter =
+      Boolean(draftSearchTerm.trim()) ||
+      draftPriorityFilter.length > 0 ||
+      draftAssigneeFilter.length > 0 ||
+      draftStatusFilter.length > 0 ||
+      draftTagFilter.length > 0 ||
+      Boolean(draftStartDate) ||
+      Boolean(draftEndDate);
+
+    // Commit immediately to workspace state
+    setSearchTerm(draftSearchTerm);
+    setPriorityFilter([...draftPriorityFilter]);
+    setAssigneeFilter([...draftAssigneeFilter]);
+    setStatusFilter([...draftStatusFilter]);
+    setTagFilter([...draftTagFilter]);
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+    onWorkspaceFiltersApplied?.();
+
+    if (!addFilterSegment && !updateFilterSegment && !deleteFilterSegment) return;
+
+    setIsApplyingWorkspaceFilters(true);
+    try {
+      if (hasAnyFilter) {
+        if (workspaceSegment && updateFilterSegment) {
+          await updateFilterSegment(workspaceSegment.id, { filters: nextFilters });
+        } else if (addFilterSegment) {
+          await addFilterSegment(WORKSPACE_FILTER_SEGMENT_NAME, nextFilters);
+        }
+      } else if (workspaceSegment && deleteFilterSegment) {
+        await deleteFilterSegment(workspaceSegment.id);
+      }
+    } catch (err) {
+      console.error("Error syncing workspace filters segment:", err);
+    } finally {
+      setIsApplyingWorkspaceFilters(false);
+    }
+  };
+
+  // Reset draft & committed workspace filters and remove persisted workspace filter segment
+  const handleResetWorkspaceFilters = async () => {
+    setDraftSearchTerm('');
+    setDraftPriorityFilter([]);
+    setDraftAssigneeFilter([]);
+    setDraftStatusFilter([]);
+    setDraftTagFilter([]);
+    setDraftStartDate('');
+    setDraftEndDate('');
+    onClearFilters();
+
+    if (workspaceSegment && deleteFilterSegment) {
+      setIsApplyingWorkspaceFilters(true);
+      try {
+        await deleteFilterSegment(workspaceSegment.id);
+      } catch (err) {
+        console.error("Error deleting workspace filter segment:", err);
+      } finally {
+        setIsApplyingWorkspaceFilters(false);
+      }
+    }
+  };
+
+  // Handler to save the active (or draft) configuration as a new saved filter preset
   const handleSaveCurrentFilter = async (name: string) => {
     if (!name.trim()) return;
-    const filtersObj = {
-      searchTerm,
-      priorityFilter: [...priorityFilter],
-      assigneeFilter: [...assigneeFilter],
-      statusFilter: [...statusFilter],
-      tagFilter: [...tagFilter],
-      startDate,
-      endDate,
+    const filtersObj: FilterSegment['filters'] = {
+      searchTerm: draftSearchTerm,
+      priorityFilter: [...draftPriorityFilter],
+      assigneeFilter: [...draftAssigneeFilter],
+      statusFilter: [...draftStatusFilter],
+      tagFilter: [...draftTagFilter],
+      startDate: draftStartDate,
+      endDate: draftEndDate,
       sprintFilter: []
     };
 
     if (addFilterSegment) {
+      setIsSavingFilter(true);
       try {
         await addFilterSegment(name.trim(), filtersObj);
-        setNewFilterName(''); // reset the text field
+        setNewFilterName('');
       } catch (err) {
         console.error("Error adding filter segment:", err);
+      } finally {
+        setIsSavingFilter(false);
       }
     } else {
       const newFilter: SavedFilterItem = {
@@ -192,12 +347,16 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
         ...filtersObj
       };
       setSavedFilters([newFilter, ...savedFilters]);
-      setNewFilterName(''); // reset the text field
+      setNewFilterName('');
     }
   };
 
-  // Handler to apply the chosen template filter properties to the workspace
+  // Handler to apply a chosen saved preset filter to the workspace
   const handleApplyFilter = (item: any) => {
+    if (onApplySegment && filterSegments) {
+      onApplySegment(item.id);
+      return;
+    }
     const filters = item.filters || item;
     setSearchTerm(filters.searchTerm || '');
     setPriorityFilter(filters.priorityFilter || []);
@@ -208,14 +367,78 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     setEndDate(filters.endDate || '');
   };
 
+  // Handler to update a saved filter preset's filter parameters with current workspace filters
+  const handleUpdatePresetFilters = async (segment: FilterSegment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!updateFilterSegment) return;
+    const filtersObj: FilterSegment['filters'] = {
+      searchTerm: draftSearchTerm,
+      priorityFilter: [...draftPriorityFilter],
+      assigneeFilter: [...draftAssigneeFilter],
+      statusFilter: [...draftStatusFilter],
+      tagFilter: [...draftTagFilter],
+      startDate: draftStartDate,
+      endDate: draftEndDate,
+      sprintFilter: segment.filters?.sprintFilter || []
+    };
+
+    setBusySegmentId(segment.id);
+    try {
+      await updateFilterSegment(segment.id, { filters: filtersObj });
+      setUpdatedSegmentId(segment.id);
+      setTimeout(() => setUpdatedSegmentId(prev => (prev === segment.id ? null : prev)), 1500);
+    } catch (err) {
+      console.error("Error updating filter segment:", err);
+    } finally {
+      setBusySegmentId(null);
+    }
+  };
+
+  // Handler to start inline rename of a saved filter preset
+  const handleStartRename = (segment: FilterSegment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSegmentId(segment.id);
+    setEditingSegmentName(segment.name);
+  };
+
+  // Handler to commit inline rename via updateFilterSegment API
+  const handleSaveRename = async (segmentId: string, e?: React.MouseEvent | React.FormEvent) => {
+    e?.stopPropagation();
+    const trimmed = editingSegmentName.trim();
+    if (!trimmed) return;
+
+    if (updateFilterSegment) {
+      setBusySegmentId(segmentId);
+      try {
+        await updateFilterSegment(segmentId, { name: trimmed });
+        setEditingSegmentId(null);
+        setEditingSegmentName('');
+      } catch (err) {
+        console.error("Error renaming filter segment:", err);
+      } finally {
+        setBusySegmentId(null);
+      }
+    } else {
+      setSavedFilters(prev => prev.map(f => (f.id === segmentId ? { ...f, name: trimmed } : f)));
+      setEditingSegmentId(null);
+      setEditingSegmentName('');
+    }
+  };
+
   // Handler to delete a registered template filter
   const handleDeleteFilter = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // preserve click focus from applying the deleted filter
+    e.stopPropagation();
     if (deleteFilterSegment) {
+      setBusySegmentId(id);
       try {
         await deleteFilterSegment(id);
+        if (activeSegmentId === id && onApplySegment) {
+          onApplySegment('all');
+        }
       } catch (err) {
         console.error("Error deleting filter segment:", err);
+      } finally {
+        setBusySegmentId(null);
       }
     } else {
       setSavedFilters(savedFilters.filter(f => f.id !== id));
@@ -252,36 +475,36 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     }
   };
 
-  // Helper toggle helpers
+  // Draft toggle helpers for WORKSPACE FILTERS
   const togglePriority = (prio: string) => {
-    if (priorityFilter.includes(prio)) {
-      setPriorityFilter(priorityFilter.filter(p => p !== prio));
+    if (draftPriorityFilter.includes(prio)) {
+      setDraftPriorityFilter(draftPriorityFilter.filter(p => p !== prio));
     } else {
-      setPriorityFilter([...priorityFilter, prio]);
+      setDraftPriorityFilter([...draftPriorityFilter, prio]);
     }
   };
 
   const toggleAssignee = (id: string) => {
-    if (assigneeFilter.includes(id)) {
-      setAssigneeFilter(assigneeFilter.filter(a => a !== id));
+    if (draftAssigneeFilter.includes(id)) {
+      setDraftAssigneeFilter(draftAssigneeFilter.filter(a => a !== id));
     } else {
-      setAssigneeFilter([...assigneeFilter, id]);
+      setDraftAssigneeFilter([...draftAssigneeFilter, id]);
     }
   };
 
   const toggleStatus = (status: string) => {
-    if (statusFilter.includes(status)) {
-      setStatusFilter(statusFilter.filter(s => s !== status));
+    if (draftStatusFilter.includes(status)) {
+      setDraftStatusFilter(draftStatusFilter.filter(s => s !== status));
     } else {
-      setStatusFilter([...statusFilter, status]);
+      setDraftStatusFilter([...draftStatusFilter, status]);
     }
   };
 
   const toggleTag = (tag: string) => {
-    if (tagFilter.includes(tag)) {
-      setTagFilter(tagFilter.filter(t => t !== tag));
+    if (draftTagFilter.includes(tag)) {
+      setDraftTagFilter(draftTagFilter.filter(t => t !== tag));
     } else {
-      setTagFilter([...tagFilter, tag]);
+      setDraftTagFilter([...draftTagFilter, tag]);
     }
   };
 
@@ -292,6 +515,14 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     statusFilter.length + 
     tagFilter.length + 
     (startDate || endDate ? 1 : 0);
+
+  const draftFiltersCount =
+    (draftSearchTerm ? 1 : 0) +
+    draftPriorityFilter.length +
+    draftAssigneeFilter.length +
+    draftStatusFilter.length +
+    draftTagFilter.length +
+    (draftStartDate || draftEndDate ? 1 : 0);
 
   return (
     <div 
@@ -359,17 +590,26 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
               {activeTab === 'filters' && (
                 <div className="space-y-6">
                   {/* Applied filters status card */}
-                  <div className="p-3 bg-[#121819]/40 border border-white/5 rounded-xl space-y-1">
+                  <div className="p-3 bg-[#121819]/40 border border-white/5 rounded-xl space-y-1.5">
                     <div className="flex justify-between items-center text-[9px] font-mono font-bold text-gray-500">
                       <span>FILTER ACCURACY</span>
                       <span className="text-emerald-400 font-black">{filteredCount} / {totalCount} Nodes</span>
                     </div>
-                    {activeFiltersCount > 0 && (
+                    {(draftFiltersCount > 0 || activeFiltersCount > 0 || workspaceSegment) && (
                       <div className="flex items-center justify-between pt-1">
-                        <span className="text-[9px] text-gray-400 font-medium"><strong>{activeFiltersCount} filter(s)</strong> configured</span>
+                        <span className="text-[9px] text-gray-400 font-medium">
+                          <strong>{draftFiltersCount} filter(s)</strong>{' '}
+                          {hasUnappliedChanges ? (
+                            <span className="text-amber-400 font-bold">pending apply</span>
+                          ) : (
+                            'active'
+                          )}
+                        </span>
                         <button 
-                          onClick={onClearFilters}
-                          className="text-[9px] font-black text-rose-400 hover:text-rose-300 uppercase tracking-widest cursor-pointer"
+                          type="button"
+                          onClick={handleResetWorkspaceFilters}
+                          disabled={isApplyingWorkspaceFilters}
+                          className="text-[9px] font-black text-rose-400 hover:text-rose-300 uppercase tracking-widest cursor-pointer disabled:opacity-50"
                         >
                           Reset filters
                         </button>
@@ -385,14 +625,21 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                       <input 
                         type="text" 
                         placeholder="Query titles, details, IDs..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        value={draftSearchTerm}
+                        onChange={(e) => setDraftSearchTerm(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyWorkspaceFilters();
+                          }
+                        }}
                         className="w-full bg-[#1C2326] text-xs text-white placeholder-gray-500 py-2 pl-8 pr-8 border border-white/5 rounded-xl focus:outline-none focus:border-emerald-500 transition-all"
                       />
-                      {searchTerm && (
+                      {draftSearchTerm && (
                         <button 
-                          onClick={() => setSearchTerm('')} 
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                          type="button"
+                          onClick={() => setDraftSearchTerm('')} 
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white cursor-pointer"
                         >
                           <XIcon className="w-3 h-3" />
                         </button>
@@ -405,9 +652,10 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                     <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Priority Classification</label>
                     <div className="flex flex-wrap gap-1.5">
                       {Object.values(TaskPriority).map(prio => {
-                        const active = priorityFilter.includes(prio);
+                        const active = draftPriorityFilter.includes(prio);
                         return (
                           <button
+                            type="button"
                             key={prio}
                             onClick={() => togglePriority(prio)}
                             className={`px-3 py-1 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer rounded-lg ${
@@ -429,9 +677,10 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                       <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Workflow Columns</label>
                       <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar">
                         {statuses.map(st => {
-                          const checked = statusFilter.includes(st);
+                          const checked = draftStatusFilter.includes(st);
                           return (
                             <button
+                              type="button"
                               key={st}
                               onClick={() => toggleStatus(st)}
                               className="w-full flex items-center justify-between px-2.5 py-1.5 bg-[#1C2326]/40 hover:bg-[#1C2326] rounded-lg border border-white/5 text-left text-xs transition-colors cursor-pointer"
@@ -451,9 +700,10 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                       <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Target Assignees</label>
                       <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar">
                         {assignees.map(u => {
-                          const checked = assigneeFilter.includes(u.id);
+                          const checked = draftAssigneeFilter.includes(u.id);
                           return (
                             <button
+                              type="button"
                               key={u.id}
                               onClick={() => toggleAssignee(u.id)}
                               className="w-full flex items-center justify-between px-2.5 py-1.5 bg-[#1C2326]/40 hover:bg-[#1C2326] rounded-lg border border-white/5 text-left text-xs transition-colors cursor-pointer"
@@ -473,9 +723,10 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                       <label className="block text-[9px] font-black text-gray-500 uppercase tracking-[0.15em]">Classification Tags</label>
                       <div className="flex flex-wrap gap-1.5">
                         {tags.map(tag => {
-                          const active = tagFilter.includes(tag);
+                          const active = draftTagFilter.includes(tag);
                           return (
                             <button
+                              type="button"
                               key={tag}
                               onClick={() => toggleTag(tag)}
                               className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-wider transition-all cursor-pointer ${
@@ -500,21 +751,54 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                         <p className="text-[8px] text-gray-500 mb-1 uppercase font-bold">Start Date</p>
                         <input 
                           type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          className="w-full bg-[#1C2326] text-xs text-white p-1.5 border border-white/5 rounded-lg focus:outline-none"
+                          value={draftStartDate}
+                          onChange={(e) => setDraftStartDate(e.target.value)}
+                          className="w-full bg-[#1C2326] text-xs text-white p-1.5 border border-white/5 rounded-lg focus:outline-none focus:border-emerald-500"
                         />
                       </div>
                       <div>
                         <p className="text-[8px] text-gray-500 mb-1 uppercase font-bold">End Date</p>
                         <input 
                           type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          className="w-full bg-[#1C2326] text-xs text-white p-1.5 border border-white/5 rounded-lg focus:outline-none"
+                          value={draftEndDate}
+                          onChange={(e) => setDraftEndDate(e.target.value)}
+                          className="w-full bg-[#1C2326] text-xs text-white p-1.5 border border-white/5 rounded-lg focus:outline-none focus:border-emerald-500"
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Apply & Reset action bar */}
+                  <div className="sticky bottom-0 pt-3 pb-1 bg-[#0B0E0F]/95 border-t border-white/5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleApplyWorkspaceFilters}
+                      disabled={isApplyingWorkspaceFilters}
+                      className={`flex-grow py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${
+                        hasUnappliedChanges
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                          : 'bg-emerald-500/90 hover:bg-emerald-400 text-black'
+                      }`}
+                    >
+                      {isApplyingWorkspaceFilters ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckIcon className="w-3.5 h-3.5" />
+                      )}
+                      <span>{isApplyingWorkspaceFilters ? 'Applying...' : 'Apply Filters'}</span>
+                    </button>
+
+                    {(draftFiltersCount > 0 || activeFiltersCount > 0 || workspaceSegment) && (
+                      <button
+                        type="button"
+                        onClick={handleResetWorkspaceFilters}
+                        disabled={isApplyingWorkspaceFilters}
+                        title="Reset all filters"
+                        className="p-2.5 rounded-xl bg-[#1C2326] hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 border border-white/5 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -717,60 +1001,70 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                         placeholder="e.g. Critical Backend bugs, Frontend tags..."
                         value={newFilterName}
                         onChange={e => setNewFilterName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newFilterName.trim() && !isSavingFilter) {
+                            e.preventDefault();
+                            handleSaveCurrentFilter(newFilterName);
+                          }
+                        }}
                         className="w-full bg-[#1C2326] text-xs text-white placeholder-gray-500 py-2.5 px-3 border border-white/5 rounded-xl focus:outline-none focus:border-sky-500 transition-all"
                       />
                       
                       <button
                         type="button"
                         onClick={() => handleSaveCurrentFilter(newFilterName)}
-                        disabled={!newFilterName.trim()}
-                        className="w-full py-2.5 bg-sky-500 hover:bg-sky-450 disabled:bg-sky-500/20 text-black disabled:text-sky-500/40 font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 text-[10px] cursor-pointer"
+                        disabled={!newFilterName.trim() || isSavingFilter}
+                        className="w-full py-2.5 bg-sky-500 hover:bg-sky-400 disabled:bg-sky-500/20 text-black disabled:text-sky-500/40 font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 text-[10px] cursor-pointer"
                       >
-                        <Bookmark className="w-4 h-4" />
-                        <span>Save Current Profile</span>
+                        {isSavingFilter ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Bookmark className="w-4 h-4" />
+                        )}
+                        <span>{isSavingFilter ? 'Saving Profile...' : 'Save Current Profile'}</span>
                       </button>
                     </div>
 
-                    {/* Summary list of loaded parameters in simple horizontal grid patterns */}
-                    {activeFiltersCount > 0 ? (
+                    {/* Summary list of loaded parameters */}
+                    {draftFiltersCount > 0 ? (
                       <div className="py-2.5 px-3 bg-white/[0.02] border border-white/5 rounded-xl space-y-1.5 font-semibold text-[10px] text-gray-500 text-left">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-450 mb-0.5">Parameters to be stored:</p>
-                        {searchTerm && (
+                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-0.5">Parameters to be stored:</p>
+                        {draftSearchTerm && (
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="text-gray-600 font-bold">Query:</span>
-                            <span className="text-gray-300 truncate font-normal">"{searchTerm}"</span>
+                            <span className="text-gray-300 truncate font-normal">"{draftSearchTerm}"</span>
                           </div>
                         )}
-                        {priorityFilter.length > 0 && (
+                        {draftPriorityFilter.length > 0 && (
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="text-gray-600 font-bold">Priority:</span>
-                            <span className="text-gray-300 truncate font-normal">{priorityFilter.join(', ')}</span>
+                            <span className="text-gray-300 truncate font-normal">{draftPriorityFilter.join(', ')}</span>
                           </div>
                         )}
-                        {statusFilter.length > 0 && (
+                        {draftStatusFilter.length > 0 && (
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="text-gray-600 font-bold">Columns:</span>
-                            <span className="text-gray-300 truncate font-normal">{statusFilter.join(', ')}</span>
+                            <span className="text-gray-300 truncate font-normal">{draftStatusFilter.join(', ')}</span>
                           </div>
                         )}
-                        {assigneeFilter.length > 0 && (
+                        {draftAssigneeFilter.length > 0 && (
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="text-gray-600 font-bold">Assignees:</span>
                             <span className="text-gray-300 truncate font-normal">
-                              {assignees.filter(u => assigneeFilter.includes(u.id)).map(u => u.name).join(', ')}
+                              {assignees.filter(u => draftAssigneeFilter.includes(u.id)).map(u => u.name).join(', ')}
                             </span>
                           </div>
                         )}
-                        {tagFilter.length > 0 && (
+                        {draftTagFilter.length > 0 && (
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="text-gray-600 font-bold">Tags:</span>
-                            <span className="text-gray-300 truncate font-normal">#{tagFilter.join(', #')}</span>
+                            <span className="text-gray-300 truncate font-normal">#{draftTagFilter.join(', #')}</span>
                           </div>
                         )}
-                        {(startDate || endDate) && (
+                        {(draftStartDate || draftEndDate) && (
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="text-gray-600 font-bold">Bounds:</span>
-                            <span className="text-gray-300 truncate font-normal">{startDate || '*'} - {endDate || '*'}</span>
+                            <span className="text-gray-300 truncate font-normal">{draftStartDate || '*'} - {draftEndDate || '*'}</span>
                           </div>
                         )}
                       </div>
@@ -784,13 +1078,13 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                   {/* Saved Templates listing context */}
                   <div className="space-y-3 pt-5 border-t border-white/5 text-left">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
-                      Saved Presets {(filterSegments ? filterSegments.length : savedFilters.length) > 0 && `(${filterSegments ? filterSegments.length : savedFilters.length})`}
+                      Saved Presets {(filterSegments ? userSavedSegments.length : savedFilters.length) > 0 && `(${filterSegments ? userSavedSegments.length : savedFilters.length})`}
                     </h3>
 
                     <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar">
                       {filterSegments ? (
-                        filterSegments.length > 0 ? (
-                          filterSegments.map((f) => {
+                        userSavedSegments.length > 0 ? (
+                          userSavedSegments.map((f) => {
                             const filtersObj = f.filters || {};
                             const attributeCount = 
                               (filtersObj.searchTerm ? 1 : 0) + 
@@ -799,31 +1093,112 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                               (filtersObj.assigneeFilter?.length || 0) + 
                               (filtersObj.tagFilter?.length || 0) + 
                               (filtersObj.startDate || filtersObj.endDate ? 1 : 0);
+                            const isActive = activeSegmentId === f.id;
+                            const isEditing = editingSegmentId === f.id;
+                            const isBusy = busySegmentId === f.id;
+                            const justUpdated = updatedSegmentId === f.id;
 
                             return (
                               <div 
                                 key={f.id}
-                                onClick={() => handleApplyFilter(f)}
-                                className="group flex flex-col p-3 bg-white/[0.01] hover:bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-all cursor-pointer text-left"
+                                onClick={() => !isEditing && handleApplyFilter(f)}
+                                className={`group flex flex-col p-3 rounded-xl border transition-all cursor-pointer text-left ${
+                                  isActive
+                                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                                    : 'bg-white/[0.01] hover:bg-white/5 border-white/5 hover:border-white/10'
+                                }`}
                               >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors truncate pr-3">
-                                    {f.name}
-                                  </span>
-                                  
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <span className="text-[8px] font-mono font-bold bg-[#141B1C] text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/10 shrink-0">
-                                      {attributeCount} attributes
+                                <div className="flex items-center justify-between gap-2">
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1.5 flex-grow" onClick={(e) => e.stopPropagation()}>
+                                      <input
+                                        type="text"
+                                        value={editingSegmentName}
+                                        onChange={(e) => setEditingSegmentName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleSaveRename(f.id);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingSegmentId(null);
+                                          }
+                                        }}
+                                        autoFocus
+                                        className="w-full bg-[#1C2326] text-xs text-white px-2 py-1 rounded-lg border border-sky-500/50 focus:outline-none"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleSaveRename(f.id, e)}
+                                        disabled={!editingSegmentName.trim() || isBusy}
+                                        className="p-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 cursor-pointer disabled:opacity-40"
+                                        title="Save Name"
+                                      >
+                                        <CheckIcon className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingSegmentId(null);
+                                        }}
+                                        className="p-1 rounded bg-white/5 text-gray-400 hover:text-white cursor-pointer"
+                                        title="Cancel"
+                                      >
+                                        <XIcon className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className={`font-bold text-xs transition-colors truncate pr-2 ${isActive ? 'text-emerald-400' : 'text-white group-hover:text-emerald-400'}`}>
+                                      {f.name}
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => handleDeleteFilter(f.id, e)}
-                                      className="p-1 rounded hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors cursor-pointer"
-                                      title="Delete Preset"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
+                                  )}
+                                  
+                                  {!isEditing && (
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <span className="text-[8px] font-mono font-bold bg-[#141B1C] text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/10 shrink-0">
+                                        {attributeCount} attr
+                                      </span>
+                                      {updateFilterSegment && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => handleUpdatePresetFilters(f, e)}
+                                            disabled={isBusy}
+                                            className={`p-1 rounded transition-colors cursor-pointer disabled:opacity-40 ${
+                                              justUpdated
+                                                ? 'bg-emerald-500/20 text-emerald-400'
+                                                : 'hover:bg-sky-500/10 text-gray-500 hover:text-sky-400'
+                                            }`}
+                                            title="Update preset with current workspace filters"
+                                          >
+                                            {justUpdated ? (
+                                              <CheckIcon className="w-3.5 h-3.5" />
+                                            ) : (
+                                              <RefreshCw className={`w-3.5 h-3.5 ${isBusy ? 'animate-spin' : ''}`} />
+                                            )}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => handleStartRename(f, e)}
+                                            disabled={isBusy}
+                                            className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
+                                            title="Rename Preset"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                        </>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleDeleteFilter(f.id, e)}
+                                        disabled={isBusy}
+                                        className="p-1 rounded hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40"
+                                        title="Delete Preset"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div className="text-[10px] text-gray-400 mt-2 truncate line-clamp-1 group-hover:text-gray-300 transition-colors font-mono">
@@ -1148,9 +1523,9 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
           title="Saved Filters"
         >
           <Bookmark className="w-5 h-5" />
-          {((filterSegments ? filterSegments.length : savedFilters.length) > 0) && (
+          {((filterSegments ? userSavedSegments.length : savedFilters.length) > 0) && (
             <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[8px] font-bold text-black font-black">
-              {filterSegments ? filterSegments.length : savedFilters.length}
+              {filterSegments ? userSavedSegments.length : savedFilters.length}
             </span>
           )}
           {/* Tooltip */}

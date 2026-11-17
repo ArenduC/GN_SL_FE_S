@@ -663,9 +663,8 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
             task.parentId = task.parentId !== undefined ? task.parentId : (task.parent_id || null);
 
             const originalTicketId = task.ticketId || task.ticket_id;
-            let ticketTag = task.tags.find((t: string) => t && t.startsWith('ticket:'));
+            const ticketTag = task.tags.find((t: string) => t && t.startsWith('ticket:'));
             let ticketNum = NaN;
-            let needsPersist = false;
 
             const isUuidBasedStr = (str: string) => {
                 if (!str) return false;
@@ -682,7 +681,6 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
                         task.tags = task.tags.filter((t: string) => t !== ticketTag);
                     }
                     task.tags.push(`ticket:${cleanOriginalTicketId}`);
-                    needsPersist = true;
                 }
             } else if (cleanTicketTag) {
                 task.ticketId = cleanTicketTag;
@@ -708,7 +706,6 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
                     task.tags = task.tags.filter((t: string) => t !== ticketTag);
                 }
                 task.tags.push(`ticket:${formattedTicketId}`);
-                needsPersist = true;
                 task.ticketId = formattedTicketId;
             }
 
@@ -725,22 +722,8 @@ const fetchInitialData = async (userId: string): Promise<AppState> => {
                             task.tags = task.tags.filter((t: string) => t !== oldTag);
                         }
                         task.tags.push(`ticket:${formatted}`);
-                        needsPersist = true;
                     }
                 }
-            }
-
-            // Attempt to assign ticket number asynchronously to database if generated on fly
-            if (needsPersist && task.id) {
-                supabase
-                    .from('tasks')
-                    .update({ tags: task.tags })
-                    .eq('id', task.id)
-                    .then(({ error }) => {
-                        if (error) {
-                            console.error(`Failed to assign permanent ticket tag to task ${task.id}`, error);
-                        }
-                    });
             }
 
             const tagRefItem = task.tags.find((t: string) => t && t.startsWith('ref:'));
@@ -1003,7 +986,14 @@ const addTasksBatch = async (tasks: any[]) => {
 };
 
 const deleteTask = async (taskId: string) => {
-    await supabase.from('tasks').delete().eq('id', taskId);
+    try {
+        await client.delete(ENDPOINTS.TASKS.deleteTask, {
+            data: { taskId }
+        });
+    } catch (e: any) {
+        console.error("Error deleting task:", e);
+        throw e;
+    }
 };
 
 const addColumn = async (projectId: string, title: string) => {

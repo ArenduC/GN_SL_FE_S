@@ -930,10 +930,16 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 <div className="h-px bg-white/5 my-3" />
 
                 <button 
-                  onClick={() => setIsManageMembersOpen(true)}
-                  disabled={!activeProjectId}
+                  onClick={() => {
+                    const targetProjectId = activeProjectId || Object.keys(state.projects || {})[0] || null;
+                    if (targetProjectId) {
+                      setMemberProjectId(targetProjectId);
+                      setIsManageMembersOpen(true);
+                    }
+                  }}
+                  disabled={!activeProjectId && Object.keys(state.projects || {}).length === 0}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all text-gray-400 disabled:opacity-40 hover:text-white hover:bg-white/5`}
-                  title="Team Management"
+                  title="User Management"
                 >
                   <UsersIcon className="w-4 h-4" />
                   {!isSidebarCollapsed && <span>User Management</span>}
@@ -1142,10 +1148,10 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                         </button>
                         <button 
                           onClick={() => {
-                            if (activeProjectId) {
+                            const targetProjectId = activeProjectId || Object.keys(state.projects || {})[0] || null;
+                            if (targetProjectId) {
+                              setMemberProjectId(targetProjectId);
                               setIsManageMembersOpen(true);
-                            } else {
-                              alert("Please select a project first.");
                             }
                             setIsQuickActionsOpen(false);
                           }}
@@ -1505,7 +1511,22 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
           `}</style>
         )}
         {isCreateProjectOpen && <CreateProjectModal onClose={() => setIsCreateProjectOpen(false)} onAddProject={(n, d) => addProject(n, d, currentUser.id)} />}
-        {isManageMembersOpen && memberProjectId && <ManageMembersModal project={state.projects[memberProjectId]} allUsers={Object.values(state.users || {})} onlineUsers={onlineUsers} onClose={() => setIsManageMembersOpen(false)} onSave={(mids) => updateProjectMembers(memberProjectId, mids)} />}
+        {isManageMembersOpen && memberProjectId && state.projects?.[memberProjectId] && (
+          <ManageMembersModal
+            project={state.projects[memberProjectId]}
+            projects={Object.values(state.projects || {})}
+            onSelectProject={(id) => setMemberProjectId(id)}
+            onOpenInviteLinks={(proj) => {
+              setIsManageMembersOpen(false);
+              setShareProject(proj);
+              setIsShareModalOpen(true);
+            }}
+            allUsers={Object.values(state.users || {})}
+            onlineUsers={onlineUsers}
+            onClose={() => setIsManageMembersOpen(false)}
+            onSave={(mids) => updateProjectMembers(memberProjectId, mids)}
+          />
+        )}
         {isShareModalOpen && shareProject && <ManageInviteLinksModal project={shareProject} currentUser={currentUser} onClose={() => setIsShareModalOpen(false)} />}
         <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} projects={state.projects} users={state.users} onSelectProject={handleSelectProject} onSelectTask={handleTaskClick} />
         <VoiceAssistantModal isOpen={isVoiceOpen} onClose={() => setIsVoiceOpen(false)} onCommand={handleVoiceCommand} />

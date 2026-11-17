@@ -783,7 +783,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     setRelativeTimeCondition(segment.filters.relativeTimeCondition || 'within');
   }, []);
 
-  // Handle shareable view links
+  const restoredWorkspaceProjectRef = useRef<string | null>(null);
+
+  // Handle shareable view links and restore persisted WORKSPACE_FILTERS segment
   useEffect(() => {
     const hash = window.location.hash;
     const urlParams = new URLSearchParams(hash.split('?')[1]);
@@ -794,9 +796,20 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         if (segment) {
             applySegmentFilters(segment);
             setActiveSegmentId(segment.id);
+            restoredWorkspaceProjectRef.current = project.id;
+        }
+        return;
+    }
+
+    if (restoredWorkspaceProjectRef.current !== project.id) {
+        const wsSegment = (project.filterSegments || []).find(s => s.name === 'WORKSPACE_FILTERS');
+        if (wsSegment) {
+            applySegmentFilters(wsSegment);
+            setActiveSegmentId('all');
+            restoredWorkspaceProjectRef.current = project.id;
         }
     }
-  }, [project.filterSegments, applySegmentFilters]); 
+  }, [project.id, project.filterSegments, applySegmentFilters]); 
   
   // Reset page when filters change
   useEffect(() => {
@@ -804,6 +817,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   }, [searchTerm, priorityFilter, assigneeFilter, statusFilter, tagFilter, sprintFilter, startDate, endDate, relativeTimeValue, relativeTimeUnit, relativeTimeCondition]);
 
   const handleApplySegment = (segmentId: string | null) => {
+      restoredWorkspaceProjectRef.current = project.id;
       setActiveSegmentId(segmentId);
       
       // Update URL hash to reflect the active view for sharing
@@ -848,6 +862,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   };
 
   const handleClearFilters = () => {
+    restoredWorkspaceProjectRef.current = project.id;
     handleApplySegment('all');
   }
 
@@ -1067,7 +1082,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               All Scope
             </button>
             {(project.filterSegments || [])
-              .filter(segment => segment.name.toUpperCase() !== 'ADD')
+              .filter(segment => segment.name.toUpperCase() !== 'ADD' && segment.name !== 'WORKSPACE_FILTERS')
               .map(segment => (
                 <div key={segment.id} className="relative group flex-shrink-0">
                     <button 
@@ -1349,7 +1364,18 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           }))}
           filterSegments={project.filterSegments || []}
           addFilterSegment={addFilterSegment}
+          updateFilterSegment={updateFilterSegment}
           deleteFilterSegment={deleteFilterSegment}
+          activeSegmentId={activeSegmentId}
+          onApplySegment={handleApplySegment}
+          onWorkspaceFiltersApplied={() => {
+            restoredWorkspaceProjectRef.current = project.id;
+            setActiveSegmentId('all');
+            const currentPath = window.location.hash.split('?')[0];
+            if (window.location.hash.includes('?')) {
+              window.location.hash = currentPath;
+            }
+          }}
 
           // Server Scope Engine parameters
           refreshBoard={refreshBoard}

@@ -6,6 +6,7 @@ export const ENDPOINTS = {
         updateTask: '/tasks/task-update',
         addTask: '/tasks/task-add',
         addTasksBatch: '/tasks/tasks-batch-add',
+        deleteTask: '/tasks/task-delete',
         addSubtasks: '/tasks/subtask-add',
         updateSubtask: '/tasks/subtask-update',
         deleteSubtask: '/tasks/subtask-delete',
