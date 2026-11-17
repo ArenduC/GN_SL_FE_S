@@ -248,8 +248,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     updateTasksRef.current = updateTasksFromBoard;
   }, [updateTasksFromBoard]);
 
+  const boardAbortControllerRef = useRef<AbortController | null>(null);
+
   const refreshBoard = useCallback(async () => {
     if (!project?.id) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setBoardLoading(false);
+      return;
+    }
+
+    if (boardAbortControllerRef.current) {
+      boardAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    boardAbortControllerRef.current = controller;
+
     setBoardLoading(true);
     try {
       const response = await api.data.fetchBoardPaginated({
@@ -286,7 +299,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             unit: relativeTimeUnit || 'hours',
           } : undefined,
         }
-      });
+      }, controller.signal);
+
+      if (controller.signal.aborted) return;
+
       setApiBoardData(response);
       setApiError(null);
       if (response && response.tasks) {
@@ -330,10 +346,19 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         }
       }
     } catch (err: any) {
-      console.error("Failed to load paginated board:", err);
+      if (controller.signal.aborted || err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') {
+        return;
+      }
+      if (!err?.response) {
+        console.warn("Paginated board sync unreachable, using cached board data:", err?.message || err);
+      } else {
+        console.warn("Paginated board sync error:", err?.response?.data?.message || err?.message);
+      }
       setApiError(err?.message || "Failed to fetch board data");
     } finally {
-      setBoardLoading(false);
+      if (!controller.signal.aborted) {
+        setBoardLoading(false);
+      }
     }
   }, [
     project?.id,
@@ -362,6 +387,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   useEffect(() => {
     refreshBoard();
+    return () => {
+      boardAbortControllerRef.current?.abort();
+    };
   }, [refreshBoard]);
 
   // Interceptors to automatically refresh the server-side state upon updates

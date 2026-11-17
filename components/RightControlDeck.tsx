@@ -185,6 +185,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   const [updatedSegmentId, setUpdatedSegmentId] = useState<string | null>(null);
   const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
   const [editingSegmentName, setEditingSegmentName] = useState('');
+  const [savedFilterError, setSavedFilterError] = useState<string | null>(null);
 
   const [savedFilters, setSavedFilters] = useState<SavedFilterItem[]>(() => {
     try {
@@ -274,6 +275,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     onWorkspaceFiltersApplied?.();
 
     if (!addFilterSegment && !updateFilterSegment && !deleteFilterSegment) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
     setIsApplyingWorkspaceFilters(true);
     try {
@@ -286,8 +288,12 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
       } else if (workspaceSegment && deleteFilterSegment) {
         await deleteFilterSegment(workspaceSegment.id);
       }
-    } catch (err) {
-      console.error("Error syncing workspace filters segment:", err);
+    } catch (err: any) {
+      if (!err?.response) {
+        console.warn("Workspace filter sync deferred (network unreachable):", err?.message || err);
+      } else {
+        console.warn("Workspace filter sync failed:", err?.response?.data?.message || err?.message);
+      }
     } finally {
       setIsApplyingWorkspaceFilters(false);
     }
@@ -305,11 +311,12 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     onClearFilters();
 
     if (workspaceSegment && deleteFilterSegment) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       setIsApplyingWorkspaceFilters(true);
       try {
         await deleteFilterSegment(workspaceSegment.id);
-      } catch (err) {
-        console.error("Error deleting workspace filter segment:", err);
+      } catch (err: any) {
+        console.warn("Workspace filter reset sync skipped:", err?.message || err);
       } finally {
         setIsApplyingWorkspaceFilters(false);
       }
@@ -319,6 +326,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   // Handler to save the active (or draft) configuration as a new saved filter preset
   const handleSaveCurrentFilter = async (name: string) => {
     if (!name.trim()) return;
+    setSavedFilterError(null);
     const filtersObj: FilterSegment['filters'] = {
       searchTerm: draftSearchTerm,
       priorityFilter: [...draftPriorityFilter],
@@ -331,12 +339,16 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     };
 
     if (addFilterSegment) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setSavedFilterError('You appear to be offline. Reconnect to save cloud filter presets.');
+        return;
+      }
       setIsSavingFilter(true);
       try {
         await addFilterSegment(name.trim(), filtersObj);
         setNewFilterName('');
-      } catch (err) {
-        console.error("Error adding filter segment:", err);
+      } catch (err: any) {
+        setSavedFilterError(err?.response?.data?.message || 'Unable to save preset right now. Please try again.');
       } finally {
         setIsSavingFilter(false);
       }
@@ -382,13 +394,14 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
       sprintFilter: segment.filters?.sprintFilter || []
     };
 
+    setSavedFilterError(null);
     setBusySegmentId(segment.id);
     try {
       await updateFilterSegment(segment.id, { filters: filtersObj });
       setUpdatedSegmentId(segment.id);
       setTimeout(() => setUpdatedSegmentId(prev => (prev === segment.id ? null : prev)), 1500);
-    } catch (err) {
-      console.error("Error updating filter segment:", err);
+    } catch (err: any) {
+      setSavedFilterError(err?.response?.data?.message || 'Unable to update preset right now. Please try again.');
     } finally {
       setBusySegmentId(null);
     }
@@ -397,6 +410,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   // Handler to start inline rename of a saved filter preset
   const handleStartRename = (segment: FilterSegment, e: React.MouseEvent) => {
     e.stopPropagation();
+    setSavedFilterError(null);
     setEditingSegmentId(segment.id);
     setEditingSegmentName(segment.name);
   };
@@ -406,6 +420,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
     e?.stopPropagation();
     const trimmed = editingSegmentName.trim();
     if (!trimmed) return;
+    setSavedFilterError(null);
 
     if (updateFilterSegment) {
       setBusySegmentId(segmentId);
@@ -413,8 +428,8 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
         await updateFilterSegment(segmentId, { name: trimmed });
         setEditingSegmentId(null);
         setEditingSegmentName('');
-      } catch (err) {
-        console.error("Error renaming filter segment:", err);
+      } catch (err: any) {
+        setSavedFilterError(err?.response?.data?.message || 'Unable to rename preset right now. Please try again.');
       } finally {
         setBusySegmentId(null);
       }
@@ -428,6 +443,7 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
   // Handler to delete a registered template filter
   const handleDeleteFilter = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setSavedFilterError(null);
     if (deleteFilterSegment) {
       setBusySegmentId(id);
       try {
@@ -435,8 +451,8 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
         if (activeSegmentId === id && onApplySegment) {
           onApplySegment('all');
         }
-      } catch (err) {
-        console.error("Error deleting filter segment:", err);
+      } catch (err: any) {
+        setSavedFilterError(err?.response?.data?.message || 'Unable to delete preset right now. Please try again.');
       } finally {
         setBusySegmentId(null);
       }
@@ -1023,6 +1039,20 @@ export const RightControlDeck: React.FC<RightControlDeckProps> = ({
                         )}
                         <span>{isSavingFilter ? 'Saving Profile...' : 'Save Current Profile'}</span>
                       </button>
+
+                      {savedFilterError && (
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[10px] text-rose-400">
+                          <span>{savedFilterError}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSavedFilterError(null)}
+                            className="p-0.5 hover:text-white cursor-pointer flex-shrink-0"
+                            title="Dismiss"
+                          >
+                            <XIcon className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Summary list of loaded parameters */}

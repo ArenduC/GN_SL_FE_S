@@ -1165,7 +1165,9 @@ const addFilterSegment = async (projectId: string, name: string, filters: any, c
         });
         return response.data?.data;
     } catch (e: any) {
-        console.error("Error adding filter segment:", e);
+        if (e?.response) {
+            console.error("Error adding filter segment:", e);
+        }
         throw e;
     }
 };
@@ -1178,7 +1180,9 @@ const updateFilterSegment = async (segmentId: string, updates: any) => {
         });
         return response.data?.data;
     } catch (e: any) {
-        console.error("Error updating filter segment:", e);
+        if (e?.response) {
+            console.error("Error updating filter segment:", e);
+        }
         throw e;
     }
 };
@@ -1189,7 +1193,9 @@ const deleteFilterSegment = async (segmentId: string) => {
             data: { segmentId }
         });
     } catch (e: any) {
-        console.error("Error deleting filter segment:", e);
+        if (e?.response) {
+            console.error("Error deleting filter segment:", e);
+        }
         throw e;
     }
 };
@@ -1302,19 +1308,31 @@ const fetchColumnTasksPaginated = async (payload: GetColumnTasksPayload): Promis
     }
 };
 
-const fetchBoardPaginated = async (payload: GetProjectBoardPaginatedPayload): Promise<PaginatedBoardResponse> => {
+const fetchBoardPaginated = async (
+    payload: GetProjectBoardPaginatedPayload,
+    signal?: AbortSignal
+): Promise<PaginatedBoardResponse> => {
     try {
-        const response = await client.post(ENDPOINTS.PROJECTS.getBoardPaginated(payload.projectId), {
-            page: payload.page,
-            limit: payload.limit,
-            columnPage: payload.columnPage,
-            columnLimit: payload.columnLimit,
-            sort: payload.sort,
-            filters: payload.filters
-        });
+        const response = await client.post(
+            ENDPOINTS.PROJECTS.getBoardPaginated(payload.projectId),
+            {
+                page: payload.page,
+                limit: payload.limit,
+                columnPage: payload.columnPage,
+                columnLimit: payload.columnLimit,
+                sort: payload.sort,
+                filters: payload.filters
+            },
+            signal ? { signal } : undefined
+        );
         return response.data?.data || response.data;
     } catch (e: any) {
-        console.error("Error fetching paginated board:", e);
+        if (e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') {
+            throw e;
+        }
+        if (e?.response) {
+            console.error("Error fetching paginated board:", e);
+        }
         throw e;
     }
 };
