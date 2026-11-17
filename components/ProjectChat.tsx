@@ -116,11 +116,11 @@ const ChatBubble: React.FC<{
 
             if (matchedText.startsWith('http')) {
                 elements.push(
-                    <a key={offset} href={matchedText} target="_blank" rel="noopener noreferrer" className="hover:underline text-sky-400 font-medium" onClick={(e) => e.stopPropagation()}>{matchedText}</a>
+                    <a key={offset} href={matchedText} target="_blank" rel="noopener noreferrer" className="hover:underline text-emerald-400 font-medium" onClick={(e) => e.stopPropagation()}>{matchedText}</a>
                 );
             } else if (matchedText.startsWith('@')) {
                 const userName = matchedText.substring(1);
-                elements.push(<strong key={offset} className="font-semibold rounded px-1.5 py-0.5 bg-sky-505/10 text-sky-400 text-[10px] border border-sky-500/10 whitespace-nowrap">@{userName}</strong>);
+                elements.push(<strong key={offset} className="font-semibold rounded px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] border border-emerald-500/20 whitespace-nowrap">@{userName}</strong>);
             }
             lastIndex = offset + matchedText.length;
         }
@@ -135,16 +135,16 @@ const ChatBubble: React.FC<{
                 <UserAvatar user={message.author} className="w-7 h-7 rounded-full flex-shrink-0 text-xs text-white mb-1 shadow-sm" isOnline={isOnline} />
             )}
             
-            {/* WhatsApp Speech Bubble */}
+            {/* Speech Bubble synced with app theme */}
             <div className={`relative max-w-[85%] sm:max-w-[72%] p-3 shadow-md text-left transition-all ${
                 isCurrentUser 
-                    ? 'bg-[#005c4b] border border-emerald-500/20 text-white rounded-2xl rounded-tr-xs' 
-                    : 'bg-[#202c33] border border-white/10 text-white rounded-2xl rounded-tl-xs'
+                    ? 'bg-[#101918] border border-emerald-500/25 text-gray-100 rounded-2xl rounded-tr-xs' 
+                    : 'bg-[#131C1B] border border-white/10 text-gray-100 rounded-2xl rounded-tl-xs'
             }`}>
                 {/* Author Name */}
                 <div className="flex items-center justify-between gap-3 mb-1">
                     <span className={`text-[11px] font-bold tracking-tight truncate ${
-                        isCurrentUser ? 'text-emerald-300' : 'text-amber-400'
+                        isCurrentUser ? 'text-emerald-400' : 'text-amber-400'
                     }`}>
                         {isCurrentUser ? 'You' : (message.author?.name || 'Collaborator')}
                     </span>
@@ -164,9 +164,7 @@ const ChatBubble: React.FC<{
                             {hasMoreThan100Words && (
                                 <button
                                     onClick={() => setIsExpanded(!isExpanded)}
-                                    className={`mt-1.5 text-[10px] font-black uppercase tracking-wider block transition-colors hover:underline cursor-pointer select-none text-left ${
-                                        isCurrentUser ? 'text-emerald-200 hover:text-white' : 'text-emerald-400 hover:text-emerald-300'
-                                    }`}
+                                    className="mt-1.5 text-[10px] font-black uppercase tracking-wider block transition-colors hover:underline cursor-pointer select-none text-left text-emerald-400 hover:text-emerald-300"
                                     type="button"
                                 >
                                     {isExpanded ? 'Read Less' : 'Read More'}
@@ -176,15 +174,15 @@ const ChatBubble: React.FC<{
                     )}
                 </div>
 
-                {/* WhatsApp Timestamp & Read Status */}
+                {/* Timestamp & Read Status */}
                 <div className={`flex items-center justify-end gap-1 mt-1 text-[9px] sm:text-[10px] font-mono select-none ${
-                    isCurrentUser ? 'text-emerald-200/70' : 'text-gray-400'
+                    isCurrentUser ? 'text-emerald-400/70' : 'text-gray-400'
                 }`}>
                     <span>
                         {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
                     {isCurrentUser && (
-                        <span className="text-sky-300 font-black text-xs leading-none ml-0.5" title="Delivered">
+                        <span className="text-emerald-400 font-black text-xs leading-none ml-0.5" title="Delivered">
                             ✓✓
                         </span>
                     )}
@@ -192,7 +190,7 @@ const ChatBubble: React.FC<{
 
                 {/* Hover Copy Action */}
                 {!isJson && (
-                    <div className={`absolute top-2 opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center bg-[#111b21] border border-white/10 rounded-lg p-0.5 shadow-xl z-20 ${
+                    <div className={`absolute top-2 opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center bg-[#0E1314] border border-white/10 rounded-lg p-0.5 shadow-xl z-20 ${
                         isCurrentUser ? '-left-8' : '-right-8'
                     }`}>
                         <button 
@@ -392,10 +390,10 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
             
             {/* Left Sidebar: Project listing */}
             <div className="w-16 md:w-64 border-r border-white/5 flex flex-col h-full bg-[#0B0E0F] shrink-0">
-                    <div className="h-16 flex-shrink-0 border-b border-white/5 px-4 flex items-center justify-center md:justify-between bg-[#0E1314]/50">
+                    <div className="h-16 flex-shrink-0 border-b border-white/5 px-4 flex items-center justify-center md:justify-between bg-[#0E1314]/80">
                         <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-white hidden md:block">Select Project</span>
                         <div className="p-1 rounded-md bg-white/5 text-gray-400 md:hidden" title="Switch Project Chat">
-                            <MessageSquareIcon className="w-4 h-4 text-sky-400" />
+                            <MessageSquareIcon className="w-4 h-4 text-emerald-400" />
                         </div>
                     </div>
                     
@@ -408,22 +406,22 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                     onClick={() => setActiveChatProjectId(proj.id)}
                                     className={`w-full text-left p-2 md:p-3 rounded-xl transition-all flex items-center gap-3 cursor-pointer select-none border group relative ${
                                         isActive 
-                                            ? 'bg-sky-500/10 border-sky-500/25 text-white' 
+                                            ? 'bg-[#101918] border-emerald-500/25 text-white' 
                                             : 'hover:bg-white/[0.02] border-transparent text-gray-400 hover:text-gray-200'
                                     }`}
                                     title={proj.name}
                                     type="button"
                                 >
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 transition-transform group-hover:scale-105 ${
-                                        isActive ? 'bg-sky-500/20 text-sky-400' : 'bg-white/5 text-gray-400'
+                                        isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400'
                                     }`}>
                                         {proj.name.slice(0, 2).toUpperCase()}
                                     </div>
                                     <div className="min-w-0 flex-grow hidden md:block text-left">
                                         <div className="flex items-center justify-between gap-1">
-                                            <h4 className="text-xs font-bold truncate">{proj.name}</h4>
+                                            <h4 className={`text-xs font-bold truncate ${isActive ? 'text-emerald-400' : ''}`}>{proj.name}</h4>
                                             {isActive && (
-                                                <span className="text-[8px] font-black uppercase tracking-wider bg-sky-500/20 text-sky-400 px-1 py-0.5 rounded shrink-0">
+                                                <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded shrink-0">
                                                     Active
                                                 </span>
                                             )}
@@ -435,7 +433,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                     
                                     {/* Active project dot on mobile */}
                                     {isActive && (
-                                        <div className="absolute top-1/2 -translate-y-1/2 right-2 w-1.5 h-1.5 bg-sky-400 rounded-full md:hidden" />
+                                        <div className="absolute top-1/2 -translate-y-1/2 right-2 w-1.5 h-1.5 bg-emerald-500 rounded-full md:hidden" />
                                     )}
                                 </button>
                             );
@@ -444,18 +442,18 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                 </div>
 
                 {/* Right Container: Active Chat View */}
-                <div className="flex-grow h-full flex flex-col overflow-hidden relative bg-[#0b141a]">
+                <div className="flex-grow h-full flex flex-col overflow-hidden relative bg-[#0D1112]">
                     
-                    {/* WhatsApp Style Header */}
-                    <header className="h-16 flex-shrink-0 border-b border-white/10 bg-[#202c33] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-md">
+                    {/* App-Themed Header */}
+                    <header className="h-16 flex-shrink-0 border-b border-white/5 bg-[#0E1314]/85 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
                         <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-9 h-9 rounded-full bg-[#00a884]/20 border border-[#00a884]/30 text-[#00a884] flex items-center justify-center shrink-0">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                                 <MessageSquareIcon className="w-5 h-5" />
                             </div>
                             <div className="min-w-0">
                                 <h3 className="text-xs sm:text-sm font-bold text-white truncate">{activeProjectObj.name}</h3>
                                 <p className="text-[10px] text-emerald-400 font-medium truncate flex items-center gap-1.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
                                     <span>{activeProjectObj.members?.length || 0} members · active context</span>
                                 </p>
                             </div>
@@ -463,7 +461,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                         
                         <button 
                             onClick={onClose} 
-                            className="p-2 rounded-full border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer block"
+                            className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer block"
                             title="Close Chat"
                             type="button"
                         >
@@ -472,10 +470,10 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                     </header>
 
                     {/* Message display listing viewport */}
-                    <div ref={scrollContainerRef} className="flex-grow overflow-y-auto custom-scrollbar flex flex-col pt-3 pb-6 bg-[#0b141a]">
+                    <div ref={scrollContainerRef} className="flex-grow overflow-y-auto custom-scrollbar flex flex-col pt-3 pb-6 bg-[#0D1112]">
                         {messagesToShow.length === 0 ? (
                             <div className="flex-grow flex flex-col items-center justify-center py-20 px-6 text-center">
-                                <div className="w-12 h-12 rounded-full bg-[#202c33] border border-white/10 flex items-center justify-center text-emerald-400 mb-4 shadow-lg">
+                                <div className="w-12 h-12 rounded-2xl bg-[#131C1B] border border-white/10 flex items-center justify-center text-emerald-400 mb-4 shadow-lg">
                                     <MessageSquareIcon className="w-6 h-6" />
                                 </div>
                                 <h4 className="text-xs font-bold text-gray-300 uppercase tracking-widest">No Messages Yet</h4>
@@ -493,7 +491,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                     <React.Fragment key={msg.id}>
                                         {showDate && (
                                             <div className="flex justify-center my-4 sticky top-2 z-10 pointer-events-none">
-                                                <span className="bg-[#182229] border border-white/10 text-gray-300 text-[10px] font-semibold px-3 py-1 rounded-md shadow-md">
+                                                <span className="bg-[#131C1B] border border-white/10 text-gray-400 text-[10px] font-semibold px-3 py-1 rounded-md shadow-md">
                                                     {formatDateSeparator(msg.createdAt)}
                                                 </span>
                                             </div>
@@ -511,10 +509,10 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                         <div ref={messagesEndRef} className="h-px w-full shrink-0" />
                     </div>
 
-                    {/* WhatsApp Style Footer Message Input Section */}
-                    <footer className="p-3 sm:p-4 border-t border-white/10 bg-[#202c33] flex-shrink-0 relative">
+                    {/* App-Themed Footer Message Input Section */}
+                    <footer className="p-3 sm:p-4 border-t border-white/5 bg-[#0E1314] flex-shrink-0 relative">
                         {suggestionState.show && filteredSuggestions.length > 0 && (
-                            <div className="absolute bottom-full left-4 sm:left-6 right-4 sm:right-6 mb-2 bg-[#182229] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar z-50 overflow-hidden">
+                            <div className="absolute bottom-full left-4 sm:left-6 right-4 sm:right-6 mb-2 bg-[#131C1B] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar z-50 overflow-hidden">
                                 <ul>
                                     {filteredSuggestions.map((item, index) => (
                                         <li 
@@ -522,7 +520,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                             onClick={() => handleSuggestionSelect(item)} 
                                             onMouseEnter={() => setActiveIndex(index)}
                                             className={`px-3.5 py-2.5 cursor-pointer flex items-center justify-between transition-colors ${
-                                                index === activeIndex ? 'bg-white/10 text-emerald-400' : 'text-gray-300'
+                                                index === activeIndex ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-300'
                                             }`}
                                         >
                                             <div className="flex items-center gap-2.5 min-w-0">
@@ -538,7 +536,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
 
                         <form 
                             onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
-                            className="flex items-center gap-2.5 bg-[#2a3942] border border-white/10 rounded-2xl p-1.5 sm:p-2 focus-within:border-emerald-500/50 transition-colors shadow-inner"
+                            className="flex items-center gap-2.5 bg-[#131C1B] border border-white/10 rounded-2xl p-1.5 sm:p-2 focus-within:border-emerald-500/40 transition-colors shadow-inner"
                         >
                             <textarea
                                 ref={textareaRef}
@@ -546,7 +544,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                                 onChange={handleNewMessageChange}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Type a message..."
-                                className="w-full bg-transparent px-3 text-xs sm:text-sm text-white placeholder-gray-400 focus:outline-none resize-none py-1.5 custom-scrollbar"
+                                className="w-full bg-transparent px-3 text-xs sm:text-sm text-white placeholder-gray-500 focus:outline-none resize-none py-1.5 rounded-xl custom-scrollbar"
                                 rows={1}
                                 style={{ height: 'auto', maxHeight: '120px' }}
                                 onInput={(e) => {
@@ -559,7 +557,7 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
                             <button 
                                 type="submit" 
                                 disabled={!newMessage.trim()}
-                                className="p-2.5 bg-[#00a884] hover:bg-[#028a6e] disabled:bg-[#202c33] text-black disabled:text-gray-500 rounded-full transition-all flex-shrink-0 flex items-center justify-center cursor-pointer shadow-md"
+                                className="p-2.5 bg-gradient-to-br from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:from-transparent disabled:to-transparent disabled:bg-white/5 text-black disabled:text-gray-500 rounded-xl transition-all flex-shrink-0 flex items-center justify-center cursor-pointer shadow-md"
                                 aria-label="Send message"
                             >
                                 <SendIcon className="w-4 h-4"/>

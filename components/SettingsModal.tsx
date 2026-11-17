@@ -128,6 +128,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             if (fetched.theme) {
               setPrefTheme(fetched.theme);
               localStorage.setItem('user_project_theme', fetched.theme);
+              window.dispatchEvent(new Event('themechange'));
             }
             if (fetched.timezone) {
               setPrefTimezone(fetched.timezone);
@@ -232,6 +233,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (key === 'user_project_theme') {
       setPrefTheme(value);
       updated.theme = value;
+      window.dispatchEvent(new Event('themechange'));
     }
     if (key === 'user_project_timezone') {
       setPrefTimezone(value);

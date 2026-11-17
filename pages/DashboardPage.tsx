@@ -176,7 +176,7 @@ const DayActivityModal: React.FC<{
                 </div>
 
                 <footer className="p-4 border-t border-white/5 bg-white/[0.01] flex justify-center">
-                    <p className="text-[9px] font-mono text-gray-600 uppercase tracking-[0.3em]">Graphynovus Neural Audit System v3.0</p>
+                    <p className="text-[9px] font-mono text-gray-600 uppercase tracking-[0.3em]">SCOPE LOG Neural Audit System v3.0</p>
                 </footer>
             </div>
         </div>

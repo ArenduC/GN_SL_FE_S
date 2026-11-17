@@ -130,7 +130,10 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
         const fetched = await api.auth.getUserSettings();
         if (fetched) {
           if (fetched.defaultView) localStorage.setItem('user_project_default_view', fetched.defaultView);
-          if (fetched.theme) localStorage.setItem('user_project_theme', fetched.theme);
+          if (fetched.theme) {
+            localStorage.setItem('user_project_theme', fetched.theme);
+            window.dispatchEvent(new Event('themechange'));
+          }
           if (fetched.timezone) localStorage.setItem('user_project_timezone', fetched.timezone);
           if (fetched.aiMode) localStorage.setItem('user_project_ai_mode', fetched.aiMode);
           if (fetched.defaultProject !== undefined) localStorage.setItem('user_project_default_project', fetched.defaultProject);
@@ -1528,7 +1531,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
                 <div className="space-y-4">
                   <div className="p-4 rounded-xl bg-gradient-to-br from-[#121918] to-[#0A0F0E] border border-emerald-500/15">
                     <p className="text-[10px] font-black uppercase tracking-widest text-[#10B981] mb-1">Current Plan Tier</p>
-                    <h3 className="text-lg font-black text-white">Graphynovus Scale Core</h3>
+                    <h3 className="text-lg font-black text-white">SCOPE LOG Scale Core</h3>
                     <p className="text-xs text-gray-400 mt-1">Automatic workload synchronization, up to 10 project nodes.</p>
                     <div className="flex items-baseline gap-1 mt-3">
                       <span className="text-xl font-bold text-white">$49</span>

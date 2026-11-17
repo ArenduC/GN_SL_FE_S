@@ -19,7 +19,7 @@ const PrivacyPolicyContent: React.FC = () => (
 
             <section>
                 <h2 className="text-lg font-semibold text-white mb-2">1. Introduction</h2>
-                <p>Welcome to Gemini Project Board. We are committed to protecting your personal information and your right to privacy. If you have any questions or concerns about this privacy notice, or our practices with regards to your personal information, please contact us.</p>
+                <p>Welcome to SCOPE LOG. We are committed to protecting your personal information and your right to privacy. If you have any questions or concerns about this privacy notice, or our practices with regards to your personal information, please contact us.</p>
             </section>
 
             <section>

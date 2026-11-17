@@ -76,7 +76,7 @@ export const InfoHubModal: React.FC<InfoHubModalProps> = ({ isOpen, onClose, ini
                             <div className="space-y-8 animate-in slide-in-from-right-2 duration-500">
                                 <div>
                                     <h3 className="text-xl font-black text-white mb-2 tracking-tight">System Manual</h3>
-                                    <p className="text-sm text-gray-400 leading-relaxed">Master the Graphynovus neural interface for peak project orchestration.</p>
+                                    <p className="text-sm text-gray-400 leading-relaxed">Master the SCOPE LOG neural interface for peak project orchestration.</p>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -125,11 +125,11 @@ export const InfoHubModal: React.FC<InfoHubModalProps> = ({ isOpen, onClose, ini
                         {activeTab === 'terms' && (
                             <div className="space-y-6 animate-in slide-in-from-right-2 duration-500 text-xs text-gray-400 leading-relaxed">
                                 <h3 className="text-xl font-black text-white mb-4 tracking-tight">Terms of Activation</h3>
-                                <p>By accessing Graphynovus, you agree to comply with our neural protocols. This platform is provided "as is" to facilitate project orchestration.</p>
+                                <p>By accessing SCOPE LOG, you agree to comply with our neural protocols. This platform is provided "as is" to facilitate project orchestration.</p>
                                 <h4 className="text-white font-bold uppercase tracking-widest mt-4">1. Access and Security</h4>
                                 <p>Users are responsible for maintaining the confidentiality of their neural credentials and API keys. Any unauthorized access detected may lead to session termination.</p>
                                 <h4 className="text-white font-bold uppercase tracking-widest mt-4">2. AI Usage</h4>
-                                <p>Generated content (tasks, descriptions, plans) is synthesized by third-party models (Google Gemini). Graphynovus is not responsible for the accuracy or output of these models.</p>
+                                <p>Generated content (tasks, descriptions, plans) is synthesized by third-party models (Google Gemini). SCOPE LOG is not responsible for the accuracy or output of these models.</p>
                                 <h4 className="text-white font-bold uppercase tracking-widest mt-4">3. Prohibited Conduct</h4>
                                 <p>The transmission of malicious data packets, attempts to breach the neural mesh, or harvesting of other user credentials is strictly prohibited.</p>
                             </div>
@@ -152,7 +152,7 @@ export const InfoHubModal: React.FC<InfoHubModalProps> = ({ isOpen, onClose, ini
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                     <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
                                         <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Neural Support</p>
-                                        <p className="text-sm text-white font-bold mb-1">support@graphynovus.io</p>
+                                        <p className="text-sm text-white font-bold mb-1">support@scopelog.io</p>
                                         <p className="text-xs text-gray-500">Typical response latency: 24h</p>
                                     </div>
                                     <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
@@ -174,7 +174,7 @@ export const InfoHubModal: React.FC<InfoHubModalProps> = ({ isOpen, onClose, ini
                 </div>
 
                 <footer className="p-6 border-t border-white/5 bg-white/[0.01] flex justify-center">
-                    <p className="text-[9px] font-mono text-gray-600 uppercase tracking-[0.3em]">Graphynovus Labs | Global Deployment v3.0.4</p>
+                    <p className="text-[9px] font-mono text-gray-600 uppercase tracking-[0.3em]">SCOPE LOG | Global Deployment v3.0.4</p>
                 </footer>
             </div>
         </div>

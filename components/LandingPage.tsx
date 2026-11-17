@@ -103,8 +103,8 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
             {/* Navigation Header */}
             <nav className="fixed top-0 w-full z-50 px-6 py-6 flex justify-between items-center backdrop-blur-md border-b border-white/5">
                 <div className="flex items-center gap-3">
-                    <AppLogo className="w-10 h-10" />
-                    <span className="text-xl font-bold tracking-tighter text-white">Graphynovus</span>
+                    <AppLogo className="w-10 h-10" theme="dark" />
+                    <span className="text-xl font-bold tracking-tighter text-white">SCOPE LOG</span>
                 </div>
                 <div className="flex items-center gap-4">
                     <button 
@@ -124,15 +124,11 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
 
             {/* Hero Section */}
             <header className="relative pt-48 pb-64 px-6 flex flex-col items-center text-center overflow-visible">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] uppercase tracking-widest text-gray-400 mb-8 animate-fade-in">
-                    <SparklesIcon className="w-3 h-3 text-emerald-400" />
-                    Powered by Gemini 3.0 Pro
-                </div>
                 <h1 className="text-6xl md:text-8xl font-bold text-white tracking-tight leading-[0.9] mb-8 max-w-4xl">
                     Experience Neural <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-500">Flow.</span>
                 </h1>
                 <p className="text-lg text-gray-400 max-w-xl mb-12 leading-relaxed">
-                    Graphynovus orchestrates your most complex projects with advanced neural reasoning and real-time mesh connectivity.
+                    SCOPE LOG orchestrates your most complex projects with advanced neural reasoning and real-time mesh connectivity.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 items-center mb-40">
                     <button 
@@ -178,7 +174,7 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
                             
                             <img 
                                 src={imgFront} 
-                                alt="Graphynovus Terminal" 
+                                alt="SCOPE LOG Terminal" 
                                 className="block w-full h-auto object-cover grayscale-[0.2] contrast-[1.1] brightness-[0.9]"
                             />
                         </div>
@@ -272,9 +268,9 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
             <section ref={loginSectionRef} className="relative z-10 min-h-screen flex items-center justify-center py-24 px-6 bg-[#0D1117]/40 backdrop-blur-sm">
                 <div className="w-full max-w-lg bg-[#131C1B]/80 p-10 rounded-xl border border-gray-800 backdrop-blur-3xl shadow-2xl transition-all duration-500 hover:border-gray-700 ring-1 ring-white/5">
                     <div className="text-center mb-10">
-                        <AppLogo className="w-20 h-20 mx-auto mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]" />
+                        <AppLogo className="w-20 h-20 mx-auto mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]" theme="dark" />
                         <h2 className="text-3xl font-bold text-white mb-3 tracking-tight">
-                            Graphynovus <span className="text-gray-500 font-light mx-1">|</span> <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-100 to-gray-400">Gemini Project Board</span>
+                            SCOPE LOG
                         </h2>
                         <p className="text-gray-500 text-sm font-medium uppercase tracking-[0.2em]">Secure Session Initialization</p>
                     </div>
@@ -286,11 +282,11 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
                     <div className="flex flex-col items-center md:items-start gap-4">
                         <div className="flex items-center gap-3 opacity-50 grayscale hover:grayscale-0 transition-all">
-                            <AppLogo className="w-6 h-6" />
-                            <span className="font-bold text-white tracking-tighter">Graphynovus</span>
+                            <AppLogo className="w-6 h-6" theme="dark" />
+                            <span className="font-bold text-white tracking-tighter">SCOPE LOG</span>
                         </div>
                         <p className="text-[10px] text-gray-600 font-mono">
-                            &copy; {new Date().getFullYear()} Graphynovus Labs. Neural Workflow Systems.
+                            &copy; {new Date().getFullYear()} SCOPE LOG. Neural Workflow Systems.
                         </p>
                     </div>
 

@@ -1,17 +1,39 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 type IconProps = React.SVGProps<SVGSVGElement>;
 
-export const AppLogo: React.FC<{ className?: string }> = ({ className = "w-6 h-6" }) => (
-    <div className={`${className} flex items-center justify-center overflow-hidden aspect-square`}>
-        <img 
-            src="https://zcxsscvheqidzvkhlnwz.supabase.co/storage/v1/object/public/Default%20image/Union%20(1).png" 
-            alt="Graphynovus" 
-            className="max-w-full max-h-full w-auto h-auto object-contain" 
-        />
-    </div>
-);
+export const SCOPE_LOG_LOGO_DARK = "https://zcxsscvheqidzvkhlnwz.supabase.co/storage/v1/object/public/Default%20image/SCOPE_LOG_LOGO_DARK.png";
+export const SCOPE_LOG_LOGO_LIGHT = "https://zcxsscvheqidzvkhlnwz.supabase.co/storage/v1/object/public/Default%20image/SCOPE_LOG_LOGO_LIGHT.png";
+
+export const AppLogo: React.FC<{ className?: string; theme?: 'dark' | 'light' | 'gray' | 'system' }> = ({ className = "w-6 h-6", theme }) => {
+    const [storedTheme, setStoredTheme] = useState<string>(() => localStorage.getItem('user_project_theme') || 'dark');
+
+    useEffect(() => {
+        if (theme) return;
+        const syncTheme = () => setStoredTheme(localStorage.getItem('user_project_theme') || 'dark');
+        window.addEventListener('storage', syncTheme);
+        window.addEventListener('themechange', syncTheme);
+        return () => {
+            window.removeEventListener('storage', syncTheme);
+            window.removeEventListener('themechange', syncTheme);
+        };
+    }, [theme]);
+
+    const activeTheme = theme || storedTheme;
+    const isLightSurface = activeTheme === 'light';
+    const logoSrc = isLightSurface ? SCOPE_LOG_LOGO_DARK : SCOPE_LOG_LOGO_LIGHT;
+
+    return (
+        <div className={`${className} flex items-center justify-center overflow-hidden aspect-square`}>
+            <img 
+                src={logoSrc} 
+                alt="SCOPE LOG" 
+                className="max-w-full max-h-full w-auto h-auto object-contain" 
+            />
+        </div>
+    );
+};
 
 export const InfoIcon: React.FC<IconProps> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
