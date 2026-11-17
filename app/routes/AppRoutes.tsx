@@ -20,6 +20,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="/project/:projectId/create-task" element={<App view="create-task" />} />
         {/* Project specific task details full page */}
         <Route path="/project/:projectId/task/:taskId" element={<App view="task-details" />} />
+        {/* Project invitation link route */}
+        <Route path="/invite/:token" element={<App view="invite" />} />
         {/* Fallback to home */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

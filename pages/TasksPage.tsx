@@ -13,9 +13,14 @@ interface TasksPageProps {
   users: Record<string, User>;
   currentUser: User;
   onTaskClick: (task: Task) => void;
+  isControlDeckOpen?: boolean;
+  setIsControlDeckOpen?: (val: boolean) => void;
 }
 
-export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUser, onTaskClick }) => {
+export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUser, onTaskClick, isControlDeckOpen, setIsControlDeckOpen }) => {
+  const [internalControlDeckOpen, setInternalControlDeckOpen] = useState(false);
+  const resolvedControlDeckOpen = isControlDeckOpen !== undefined ? isControlDeckOpen : internalControlDeckOpen;
+  const resolvedSetControlDeckOpen = setIsControlDeckOpen || setInternalControlDeckOpen;
   const [viewMode, setViewMode] = useState<'all' | 'my'>('all');
   
   // Filtering state
@@ -409,7 +414,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
   };
 
   return (
-    <div className="w-full relative pr-0 lg:pr-80 pb-12">
+    <div className={`w-full relative pr-0 ${resolvedControlDeckOpen ? 'lg:pr-[368px]' : 'lg:pr-12'} pb-12 transition-all duration-300 ease-in-out`}>
       <div className="flex-grow min-w-0 space-y-6">
         <TaskInsights tasks={filteredTasks} />
 
@@ -666,6 +671,8 @@ export const TasksPage: React.FC<TasksPageProps> = ({ projects, users, currentUs
         onExportPdf={handleExportPdf}
         filteredCount={filteredTasks.length}
         totalCount={allTasks.length}
+        isOpen={resolvedControlDeckOpen}
+        onToggleIsOpen={resolvedSetControlDeckOpen}
       />
     </div>
   );

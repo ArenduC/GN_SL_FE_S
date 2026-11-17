@@ -18,7 +18,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onShowPrivacy }) => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
-    const [hasInvite, setHasInvite] = useState(false);
+    const [hasInvite, setHasInvite] = useState(() =>
+        Boolean(localStorage.getItem('project_invite_token')) ||
+        window.location.pathname.startsWith('/invite/')
+    );
 
     const handleGoogleCredentialResponse = async (response: any) => {
         try {
@@ -43,7 +46,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onShowPrivacy }) => {
     };
 
     useEffect(() => {
-        if (localStorage.getItem('project_invite_token')) {
+        if (localStorage.getItem('project_invite_token') || window.location.pathname.startsWith('/invite/')) {
             setHasInvite(true);
         }
     }, []);

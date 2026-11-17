@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, createContext, useContext, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext, useCallback, useMemo } from 'react';
 import { AppState, User, Project, Task, NewTaskData, Subtask, ChatMessage, TaskPriority, AiGeneratedTaskFromFile, Sprint, FilterSegment, FeedbackType } from './types';
 import { useAppState } from './hooks/useAppState';
 import { api, generateProjectCode } from './services/api';
@@ -53,14 +53,14 @@ export const useConfirmation = () => {
   return context.confirm;
 };
 
-type View = 'dashboard' | 'tasks' | 'resources' | 'resource-mesh' | 'project' | 'create-task' | 'task-details';
+type View = 'dashboard' | 'tasks' | 'resources' | 'resource-mesh' | 'project' | 'create-task' | 'task-details' | 'invite';
 
 interface AppProps {
   view?: View;
 }
 
 const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
-  const { projectId, taskId } = useParams<{ projectId: string; taskId: string }>();
+  const { projectId, taskId, token: inviteRouteToken } = useParams<{ projectId: string; taskId: string; token: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
@@ -73,7 +73,7 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   const setCurrentUser = (user: User | null) => dispatch(setReduxUser(user));
 
   const activeProjectId = (view === 'project' || view === 'create-task' || view === 'task-details' || view === 'resource-mesh') ? projectId || null : null;
-  const currentView = (view === 'project' || view === 'create-task' || view === 'task-details') ? 'dashboard' : view;
+  const currentView = (view === 'project' || view === 'create-task' || view === 'task-details' || view === 'invite') ? 'dashboard' : view;
   const [onlineUsers, setOnlineUsersLocal] = useState<Set<string>>(new Set());
 
   const setOnlineUsers = useCallback((users: Set<string>) => {
@@ -84,6 +84,8 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isJoiningProject, setIsJoiningProject] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const processingInviteTokenRef = useRef<string | null>(null);
   const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   
   // AI features strictly depend on user provided key
@@ -334,12 +336,12 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
       if (event === 'SIGNED_OUT') {
         setIsRecoveringPassword(false);
         setCurrentUser(null);
-        setActiveProjectId(null);
+        dispatch(setReduxActiveProjectId(null));
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     if (session?.user) {
@@ -384,26 +386,66 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
     }
   }, [session]);
 
+  // Persist route invite token immediately so it survives sign-in / sign-up
+  useEffect(() => {
+    if (inviteRouteToken) {
+      const cleanToken = inviteRouteToken.trim();
+      if (cleanToken) {
+        localStorage.setItem('project_invite_token', cleanToken);
+      }
+    } else if (window.location.pathname.startsWith('/invite/')) {
+      const rawToken = window.location.pathname.split('/invite/')[1] || '';
+      const cleanToken = rawToken.split('/')[0].split('?')[0].trim();
+      if (cleanToken) {
+        localStorage.setItem('project_invite_token', cleanToken);
+      }
+    }
+  }, [inviteRouteToken]);
+
   useEffect(() => {
     const processInvite = async () => {
-        if (currentUser && !isJoiningProject) {
-            const token = localStorage.getItem('project_invite_token');
-            if (token) {
-                setIsJoiningProject(true);
-                try {
-                    await api.data.acceptInvite(token);
-                    localStorage.removeItem('project_invite_token');
-                    await fetchData(true);
-                } catch (e) {
-                    localStorage.removeItem('project_invite_token');
-                } finally {
-                    setIsJoiningProject(false);
-                }
+        if (!currentUser) return;
+        const token = (inviteRouteToken || localStorage.getItem('project_invite_token') || '').trim();
+        if (!token || processingInviteTokenRef.current === token) return;
+
+        processingInviteTokenRef.current = token;
+        setIsJoiningProject(true);
+        try {
+            const result = await api.data.acceptInvite(token);
+            localStorage.removeItem('project_invite_token');
+            await fetchData(true);
+            const joinedProjectId = result?.projectId || result?.project_id || result?.project?.id;
+            setInviteStatus({
+              type: 'success',
+              message: 'Invitation accepted! You now have access to the project workspace.'
+            });
+            if (joinedProjectId) {
+              navigate(`/project/${joinedProjectId}`, { replace: true });
+            } else if (view === 'invite') {
+              navigate('/dashboard', { replace: true });
             }
+        } catch (err: any) {
+            localStorage.removeItem('project_invite_token');
+            const errMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Invitation link is invalid or has expired.';
+            setInviteStatus({
+              type: 'error',
+              message: errMsg
+            });
+            if (view === 'invite') {
+              navigate('/dashboard', { replace: true });
+            }
+        } finally {
+            setIsJoiningProject(false);
         }
     };
     processInvite();
-  }, [currentUser, fetchData]);
+  }, [currentUser, fetchData, inviteRouteToken, view, navigate]);
+
+  useEffect(() => {
+    if (!inviteStatus) return;
+    const timer = setTimeout(() => setInviteStatus(null), 6000);
+    return () => clearTimeout(timer);
+  }, [inviteStatus]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1543,6 +1585,28 @@ const App: React.FC<AppProps> = ({ view = 'dashboard' }) => {
           />
         <InfoHubModal isOpen={isInfoHubOpen} onClose={() => setIsInfoHubOpen(false)} />
         <OfflineIndicator />
+
+        {inviteStatus && (
+          <div className="fixed bottom-5 right-5 z-[110] max-w-sm animate-in fade-in slide-in-from-bottom-3 duration-200">
+            <div className={`px-4 py-3 rounded-xl border shadow-2xl flex items-start gap-3 backdrop-blur-md ${
+              inviteStatus.type === 'success'
+                ? 'bg-[#0F1C1C]/95 border-emerald-500/40 text-emerald-300'
+                : 'bg-[#1C1214]/95 border-rose-500/40 text-rose-300'
+            }`}>
+              <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
+                inviteStatus.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'
+              }`} />
+              <p className="text-xs font-medium leading-relaxed flex-grow">{inviteStatus.message}</p>
+              <button
+                type="button"
+                onClick={() => setInviteStatus(null)}
+                className="text-xs font-bold opacity-70 hover:opacity-100 cursor-pointer ml-1"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Floating Mock Billing subscription slider panel */}
         {isBillingOpen && (

@@ -57,13 +57,14 @@ export const LandingPage: React.FC<{ onShowPrivacy: () => void }> = ({ onShowPri
     useEffect(() => {
         const path = window.location.pathname;
         if (path.startsWith('/invite/')) {
-            const token = path.split('/invite/')[1];
+            const rawToken = path.split('/invite/')[1] || '';
+            const token = rawToken.split('/')[0].split('?')[0].trim();
             if (token) {
                 localStorage.setItem('project_invite_token', token);
-                // Clean up URL without reload
-                window.history.replaceState({}, '', '/');
                 scrollToLogin();
             }
+        } else if (localStorage.getItem('project_invite_token')) {
+            scrollToLogin();
         }
     }, []);
 

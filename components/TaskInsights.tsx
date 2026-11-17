@@ -25,7 +25,7 @@ const InsightCard: React.FC<{ title: string; value: string | number; icon: React
         </div>
         {footer && (
             <div className="mt-3 flex items-center gap-2 z-10">
-                <div className={`w-1 h-1 rounded-full animate-pulse ${colorClass.replace('bg-', 'bg-opacity-100 bg-')}`} />
+                <div className={`w-1 h-1 rounded-full animate-pulse ${colorClass}`} />
                 <p className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">{footer}</p>
             </div>
         )}

@@ -1197,7 +1197,7 @@ const deleteFilterSegment = async (segmentId: string) => {
 const acceptInvite = async (token: string) => {
     try {
         const response = await client.post(ENDPOINTS.PROJECTS.acceptInvite, { token });
-        return response.data?.data;
+        return response.data?.data ?? response.data;
     } catch (e: any) {
         console.error("Error accepting project invite:", e);
         throw e;
@@ -1217,7 +1217,8 @@ const submitFeedback = async (feedbackData: any) => {
 const getInviteLinksForProject = async (projectId: string) => {
     try {
         const response = await client.post(ENDPOINTS.PROJECTS.getInviteLinks, { projectId });
-        return response.data?.data;
+        const payload = response.data?.data ?? response.data;
+        return Array.isArray(payload) ? payload : [];
     } catch (e: any) {
         console.error("Error getting project invite links:", e);
         throw e;
